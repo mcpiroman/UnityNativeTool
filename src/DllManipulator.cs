@@ -153,6 +153,11 @@ namespace DllManipulator
                     dll.loadingError = false; 
                     dll.symbolError = false; 
 
+                    foreach(var func in dll.functions)
+                    {
+                        func.@delegate = null;
+                    }
+
                     if(!success)
                     {
                         Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
