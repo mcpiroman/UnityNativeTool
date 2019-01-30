@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace DllManipulator.Internal
 {
@@ -52,115 +53,47 @@ namespace DllManipulator.Internal
 
     internal class NativeFunctionSignature
     {
-        public readonly Type returnParameterType;
-        public readonly Type[] returnParameterRequiredModifiers;
-        public readonly Type[] retunrParameterOptionalModifiers;
+        public readonly Type returnParameterType;    
         public readonly Type[] parameterTypes;
-        public readonly Type[][] parameterRequiredModifiers;
-        public readonly Type[][] parameterOptionalModifiers;
-        public readonly System.Runtime.InteropServices.CallingConvention callingConvention;
+        public readonly CallingConvention callingConvention;
+        public readonly bool bestFitMapping;
+        public readonly CharSet charSet;
+        public readonly bool setLastError;
+        public readonly bool throwOnUnmappableChar;
 
-        public NativeFunctionSignature(MethodInfo methodInfo, System.Runtime.InteropServices.CallingConvention callingConvention)
+        public NativeFunctionSignature(MethodInfo methodInfo, CallingConvention callingConvention, bool bestFitMapping, CharSet charSet, bool setLastError, bool throwOnUnmappableChar)
         {
-            var returnParameter = methodInfo.ReturnParameter;
-            returnParameterType = returnParameter.ParameterType;
-            returnParameterRequiredModifiers = returnParameter.GetRequiredCustomModifiers();
-            retunrParameterOptionalModifiers = returnParameter.GetOptionalCustomModifiers();
-            var parameters = methodInfo.GetParameters();
-            parameterTypes = parameters.Select(p => p.ParameterType).ToArray();
-            parameterRequiredModifiers = new Type[parameters.Length][];
-            parameterOptionalModifiers = new Type[parameters.Length][];
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                parameterRequiredModifiers[i] = parameters[i].GetRequiredCustomModifiers();
-                parameterOptionalModifiers[i] = parameters[i].GetOptionalCustomModifiers();
-            }
-
+            this.returnParameterType = methodInfo.ReturnType;
+            this.parameterTypes = methodInfo.GetParameters().Select(p => p.ParameterType).ToArray();
             this.callingConvention = callingConvention;
+            this.bestFitMapping = bestFitMapping;
+            this.charSet = charSet;
+            this.setLastError = setLastError;
+            this.throwOnUnmappableChar = throwOnUnmappableChar;
         }
 
         public override bool Equals(object obj)
         {
-            if (obj == null)
-            {
-                return false;
-            }
-
-            if (obj is NativeFunctionSignature other)
-            {
-                return Equals(other);
-            }
-
-            return false;
-        }
-
-        public bool Equals(NativeFunctionSignature other)
-        {
-            //Ordered by probability in being different
-            if (returnParameterType != other.returnParameterType)
-            {
-                return false;
-            }
-
-            if (!parameterTypes.SequenceEqual(other.parameterTypes))
-            {
-                return false;
-            }
-
-            if (parameterRequiredModifiers.Length != other.parameterRequiredModifiers.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < parameterRequiredModifiers.Length; i++)
-            {
-                if (!parameterRequiredModifiers[i].SequenceEqual(other.parameterRequiredModifiers[i]))
-                {
-                    return false;
-                }
-            }
-
-            if (!returnParameterRequiredModifiers.SequenceEqual(other.returnParameterRequiredModifiers))
-            {
-                return false;
-            }
-
-            if (callingConvention != other.callingConvention)
-            {
-                return false;
-            }
-
-            if (parameterOptionalModifiers.Length != other.parameterOptionalModifiers.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < parameterOptionalModifiers.Length; i++)
-            {
-                if (!parameterOptionalModifiers[i].SequenceEqual(other.parameterOptionalModifiers[i]))
-                {
-                    return false;
-                }
-            }
-
-            if (!retunrParameterOptionalModifiers.SequenceEqual(other.retunrParameterOptionalModifiers))
-            {
-                return false;
-            }
-
-            return true;
+            return obj is NativeFunctionSignature other &&
+                   EqualityComparer<Type>.Default.Equals(returnParameterType, other.returnParameterType) &&
+                   EqualityComparer<Type[]>.Default.Equals(parameterTypes, other.parameterTypes) &&
+                   callingConvention == other.callingConvention &&
+                   bestFitMapping == other.bestFitMapping &&
+                   charSet == other.charSet &&
+                   setLastError == other.setLastError &&
+                   throwOnUnmappableChar == other.throwOnUnmappableChar;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = 1660825957;
+            var hashCode = 763644728;
             hashCode = hashCode * -1521134295 + EqualityComparer<Type>.Default.GetHashCode(returnParameterType);
-            hashCode = hashCode * -1521134295 + EqualityComparer<Type[]>.Default.GetHashCode(returnParameterRequiredModifiers);
-            hashCode = hashCode * -1521134295 + EqualityComparer<Type[]>.Default.GetHashCode(retunrParameterOptionalModifiers);
             hashCode = hashCode * -1521134295 + EqualityComparer<Type[]>.Default.GetHashCode(parameterTypes);
-            hashCode = hashCode * -1521134295 + EqualityComparer<Type[][]>.Default.GetHashCode(parameterRequiredModifiers);
-            hashCode = hashCode * -1521134295 + EqualityComparer<Type[][]>.Default.GetHashCode(parameterOptionalModifiers);
             hashCode = hashCode * -1521134295 + callingConvention.GetHashCode();
+            hashCode = hashCode * -1521134295 + bestFitMapping.GetHashCode();
+            hashCode = hashCode * -1521134295 + charSet.GetHashCode();
+            hashCode = hashCode * -1521134295 + setLastError.GetHashCode();
+            hashCode = hashCode * -1521134295 + throwOnUnmappableChar.GetHashCode();
             return hashCode;
         }
     }

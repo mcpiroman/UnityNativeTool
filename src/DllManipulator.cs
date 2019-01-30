@@ -17,6 +17,7 @@ namespace DllManipulator
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
         private static readonly Type[] DELEGATE_CTOR_PARAMETERS = new[] { typeof(object), typeof(IntPtr) };
+        private static readonly Type[] UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS = new[] { typeof(CallingConvention) };
 
         public DllManipulatorOptions Options = new DllManipulatorOptions()
         {
@@ -251,10 +252,11 @@ namespace DllManipulator
 
             var parameters = nativeMethod.GetParameters();
             var parametersTypes = parameters.Select(x => x.ParameterType).ToArray();
-            var nativeMethodSignature = new NativeFunctionSignature(nativeMethod, dllImportAttr.CallingConvention);
+            var nativeMethodSignature = new NativeFunctionSignature(nativeMethod, dllImportAttr.CallingConvention, 
+                dllImportAttr.BestFitMapping, dllImportAttr.CharSet, dllImportAttr.SetLastError, dllImportAttr.ThrowOnUnmappableChar);
             if (!_delegateTypesForNativeFunctionSignatures.TryGetValue(nativeMethodSignature, out nativeFunction.delegateType))
             {
-                nativeFunction.delegateType = CreateDelegateTypeForMethodSignature(nativeMethodSignature);
+                nativeFunction.delegateType = CreateDelegateTypeForNativeFunctionSignature(nativeMethodSignature);
                 _delegateTypesForNativeFunctionSignatures.Add(nativeMethodSignature, nativeFunction.delegateType);
             }
             var targetDelegateInvokeMethod = nativeFunction.delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
@@ -331,7 +333,7 @@ namespace DllManipulator
             _nativeFunctions[_nativeFunctionsCount++] = nativeFunction;
         }
 
-        private static Type CreateDelegateTypeForMethodSignature(NativeFunctionSignature methodSignature)
+        private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature funcionSignature)
         {
             if (_customDelegateTypesModule == null)
             {
@@ -343,18 +345,33 @@ namespace DllManipulator
             var delBuilder = _customDelegateTypesModule.DefineType("HelperNativeDelegate" + _createdDelegateTypes.ToString(),
                 TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AnsiClass | TypeAttributes.AutoClass, typeof(MulticastDelegate));
 
+            //ufp = UnmanagedFunctionPointer
+            var ufpAttrType = typeof(UnmanagedFunctionPointerAttribute);
+            var ufpAttrCtor = ufpAttrType.GetConstructor(UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS); 
+            var ufpAttrCtorArgValues = new object[] { funcionSignature.callingConvention };
+            var ufpAttrNamedFields = new [] {
+                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.BestFitMapping), BindingFlags.Public | BindingFlags.Instance),
+                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet), BindingFlags.Public | BindingFlags.Instance),
+                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.SetLastError), BindingFlags.Public | BindingFlags.Instance),
+                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance),
+            };
+            var ufpAttrFieldValues = new object[] { funcionSignature.bestFitMapping, funcionSignature.charSet, funcionSignature.setLastError, funcionSignature.throwOnUnmappableChar };
+            var ufpAttrBuilder = new CustomAttributeBuilder(ufpAttrCtor, ufpAttrCtorArgValues, ufpAttrNamedFields, ufpAttrFieldValues);
+            delBuilder.SetCustomAttribute(ufpAttrBuilder);
+
+
             var ctorBuilder = delBuilder.DefineConstructor(MethodAttributes.RTSpecialName | MethodAttributes.HideBySig | MethodAttributes.Public,
                 CallingConventions.Standard, DELEGATE_CTOR_PARAMETERS);
             ctorBuilder.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
             var invokeBuilder = delBuilder.DefineMethod("Invoke", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Virtual | MethodAttributes.NewSlot,
-                CallingConventions.Standard | CallingConventions.HasThis, methodSignature.returnParameterType, methodSignature.returnParameterRequiredModifiers,
-                methodSignature.retunrParameterOptionalModifiers, methodSignature.parameterTypes, methodSignature.parameterRequiredModifiers, methodSignature.parameterOptionalModifiers);
+                CallingConventions.Standard | CallingConventions.HasThis, funcionSignature.returnParameterType, funcionSignature.parameterTypes);
             invokeBuilder.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
             _createdDelegateTypes++;
             return delBuilder.CreateType();
         }
+
 
         private static string GetDllPath(string dllName)
         {

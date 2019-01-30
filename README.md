@@ -8,8 +8,8 @@ Doing so involves mocking original native method calls with these made to manual
 - Api Compatibility Level >= .NET 4.x
 
 ## Limitations
-- All `[DllImport]` properties except for `dllName` and `EntryPoint` are not supported
 - All marshaling attributes such as `[MarshalAs]` or `[In]` are not supported
+- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported
 - Multithreading is not supported (native calls from any but Unity main thread)
 
 ## Preformance
@@ -126,3 +126,4 @@ class AllInOne : MonoBehaviour
 - Thread safety
 - Mac support
 - Possibly break depencency on Harmony
+- Better names
