@@ -104,7 +104,8 @@ namespace DllManipulator
             {
                 if (_options.mockCallsInAllTypes || type.IsDefined(typeof(MockNativeCallsAttribute)))
                 {
-                    foreach (var method in type.GetRuntimeMethods())
+                    foreach (var method in type.GetRuntimeMethods().Cast<MethodBase>()
+                        .Concat(type.GetConstructors(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)))
                     {
                         if (!(method is DynamicMethod) && method.DeclaringType == type && method.GetMethodBody() != null)
                         {
@@ -200,8 +201,7 @@ namespace DllManipulator
             {
                 if (instr.opcode == OpCodes.Call)
                 {
-                    var nativeMethod = (MethodInfo)instr.operand;
-                    if (_nativeFunctionsToMock.Contains(nativeMethod))
+                    if (instr.operand is MethodInfo nativeMethod && _nativeFunctionsToMock.Contains(nativeMethod))
                     {
                         if (!_nativeCallMocks.TryGetValue(nativeMethod, out var newMethod))
                         {
