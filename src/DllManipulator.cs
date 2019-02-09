@@ -379,7 +379,7 @@ namespace DllManipulator
                 var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
                 foreach(var attr in param.customAttributes)
                 {
-                    paramBuilder.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr)); //Throws exception. See https://github.com/mono/mono/issues/12747
+                    paramBuilder.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr));
                 }
             }
 
@@ -396,17 +396,17 @@ namespace DllManipulator
                 {
                     var ctor = attrType.GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS);
                     object[] ctorArgs = { marshalAsAttribute.Value };
-                    var fieldArguments = new List<FieldInfo>();
-                    var fieldArgumentValues = new List<object>();
-                    foreach (var field in attrType.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                    var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
+                            .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
+                    var fieldArgumentValues = new object[fields.Length];
+                    for(int i = 0; i < fields.Length; i++)
                     {
-                        fieldArguments.Add(field);
-                        fieldArgumentValues.Add(field.GetValue(attribute));
+                        fieldArgumentValues[i] = fields[i].GetValue(attribute);
                     }
 
-                    //MarshalAsAttribute has no properties other than Value, which is passed in constructor
+                    //MarshalAsAttribute has no properties other than Value, which is passed in constructor, hence empty properties array
                     return new CustomAttributeBuilder(ctor, ctorArgs, Array.Empty<PropertyInfo>(), Array.Empty<object>(),
-                        fieldArguments.ToArray(), fieldArgumentValues.ToArray());
+                        fields, fieldArgumentValues);
                 }
                 case InAttribute _:
                 {

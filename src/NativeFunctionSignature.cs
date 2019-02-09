@@ -29,21 +29,54 @@ namespace DllManipulator.Internal
 
         public override bool Equals(object obj)
         {
-            return obj is NativeFunctionSignature other &&
-                   returnParameter.Equals(other.returnParameter) &&
-                   parameters.SequenceEqual(other.parameters) &&
-                   callingConvention == other.callingConvention &&
-                   bestFitMapping == other.bestFitMapping &&
-                   charSet == other.charSet &&
-                   setLastError == other.setLastError &&
-                   throwOnUnmappableChar == other.throwOnUnmappableChar;
+            var other = obj as NativeFunctionSignature;
+            if (other == null)
+            {
+                return false;
+            }
+
+            if(!returnParameter.Equals(other.returnParameter))
+            {
+                return false;
+            }
+
+            if (!parameters.SequenceEqual(other.parameters))
+            {
+                return false;
+            }
+
+            if (callingConvention != other.callingConvention)
+            {
+                return false;
+            }
+
+            if (bestFitMapping != other.bestFitMapping)
+            {
+                return false;
+            }
+
+            if (charSet != other.charSet)
+            {
+                return false;
+            }
+
+            if (setLastError != other.setLastError)
+            {
+                return false;
+            }
+
+            if (throwOnUnmappableChar != other.throwOnUnmappableChar)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = -1225548256;
+            var hashCode = 316391695;
             hashCode = hashCode * -1521134295 + returnParameter.GetHashCode();
-            hashCode = hashCode * -1521134295 + EqualityComparer<NativeFunctionParameterSignature[]>.Default.GetHashCode(parameters);
             hashCode = hashCode * -1521134295 + callingConvention.GetHashCode();
             hashCode = hashCode * -1521134295 + bestFitMapping.GetHashCode();
             hashCode = hashCode * -1521134295 + charSet.GetHashCode();
@@ -63,7 +96,8 @@ namespace DllManipulator.Internal
         {
             this.type = parameterInfo.ParameterType;
             this.parameterAttributes = parameterInfo.Attributes;
-            this.customAttributes = parameterInfo.GetCustomAttributes()
+            var attrs = parameterInfo.GetCustomAttributes(false).OfType<Attribute>(); //XXX: This is required way of obtaining attributes, since both CustomAttributeExtensions.GetCustomAttributes() and Attribute.GetCustomAttributes() return at most 1 attribute (mono bug?)
+            this.customAttributes = attrs
                 .Where(a => DllManipulator.SUPPORTED_PARAMATER_ATTRIBUTES.Contains(a.GetType()))
                 .ToArray();
         }
@@ -78,18 +112,34 @@ namespace DllManipulator.Internal
         public override bool Equals(object obj)
         {
             var other = obj as NativeFunctionParameterSignature;
-            return other != null &&
-                   type == other.type &&
-                   parameterAttributes == other.parameterAttributes &&
-                   customAttributes.Except(other.customAttributes).Any(); //Check if arrays have the same elements
+            if(other == null)
+            {
+                return false;
+            }
+
+            if (type != other.type)
+            {
+                return false;
+            }
+
+            if (parameterAttributes != other.parameterAttributes)
+            {
+                return false;
+            }
+            
+            if (customAttributes.Except(other.customAttributes).Any()) //Check if arrays have the same elements
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = 1477582057;
+            var hashCode = 424392846;
             hashCode = hashCode * -1521134295 + type.GetHashCode();
-            hashCode = hashCode * -1521134295 + EqualityComparer<Attribute[]>.Default.GetHashCode(customAttributes);
-            hashCode = hashCode * -1521134295 + customAttributes.GetHashCode();
+            hashCode = hashCode * -1521134295 + parameterAttributes.GetHashCode();
             return hashCode;
         }
     }
