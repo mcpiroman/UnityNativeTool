@@ -8,8 +8,9 @@ Doing so involves mocking original native method calls with these made to manual
 - Api Compatibility Level >= .NET 4.x
 
 ## Limitations
-- All marshaling attributes such as `[MarshalAs]` or `[In]` are not supported
-- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported
+- All parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported
+- Fields `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` of `[MarshalAs]` attribute are not supported (due to Mono bug https://github.com/mono/mono/issues/12747)
+- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them)
 - Multithreading is not supported (native calls from any but Unity main thread)
 
 ## Preformance
