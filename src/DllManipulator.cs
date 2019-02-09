@@ -16,8 +16,10 @@ namespace DllManipulator
         public const string DLL_PATH_PATTERN_NAME_MACRO = "{name}";
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
-        private static readonly Type[] DELEGATE_CTOR_PARAMETERS = new[] { typeof(object), typeof(IntPtr) };
-        private static readonly Type[] UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS = new[] { typeof(CallingConvention) };
+        public static readonly Type[] SUPPORTED_PARAMATER_ATTRIBUTES = { typeof(MarshalAsAttribute), typeof(InAttribute), typeof(OutAttribute) };
+        private static readonly Type[] DELEGATE_CTOR_PARAMETERS = { typeof(object), typeof(IntPtr) };
+        private static readonly Type[] UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS = { typeof(CallingConvention) };
+        private static readonly Type[] MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS = { typeof(UnmanagedType) };
 
         public DllManipulatorOptions Options = new DllManipulatorOptions()
         {
@@ -262,10 +264,10 @@ namespace DllManipulator
             var targetDelegateInvokeMethod = nativeFunction.delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
 
             var mockedDynamicMethod = new DynamicMethod(dllName + ":::" + nativeFunctionSymbol, nativeMethod.ReturnType, parametersTypes, typeof(DllManipulator));
-            mockedDynamicMethod.DefineParameter(0, nativeMethod.ReturnParameter.Attributes, nativeMethod.ReturnParameter.Name);
+            mockedDynamicMethod.DefineParameter(0, nativeMethod.ReturnParameter.Attributes, null);
             for (int i = 0; i < parameters.Length; i++)
             {
-                mockedDynamicMethod.DefineParameter(parameters[i].Position, parameters[i].Attributes, parameters[i].Name);
+                mockedDynamicMethod.DefineParameter(i + 1, parameters[i].Attributes, null);
             }
 
             if (_nativeFunctionsField == null)
@@ -333,7 +335,7 @@ namespace DllManipulator
             _nativeFunctions[_nativeFunctionsCount++] = nativeFunction;
         }
 
-        private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature funcionSignature)
+        private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature functionSignature)
         {
             if (_customDelegateTypesModule == null)
             {
@@ -347,31 +349,81 @@ namespace DllManipulator
 
             //ufp = UnmanagedFunctionPointer
             var ufpAttrType = typeof(UnmanagedFunctionPointerAttribute);
-            var ufpAttrCtor = ufpAttrType.GetConstructor(UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS); 
-            var ufpAttrCtorArgValues = new object[] { funcionSignature.callingConvention };
-            var ufpAttrNamedFields = new [] {
+            var ufpAttrCtor = ufpAttrType.GetConstructor(UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS);
+            object[] ufpAttrCtorArgValues = { functionSignature.callingConvention };
+            FieldInfo[] ufpAttrNamedFields = {
                 ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.BestFitMapping), BindingFlags.Public | BindingFlags.Instance),
                 ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet), BindingFlags.Public | BindingFlags.Instance),
                 ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.SetLastError), BindingFlags.Public | BindingFlags.Instance),
                 ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance),
             };
-            var ufpAttrFieldValues = new object[] { funcionSignature.bestFitMapping, funcionSignature.charSet, funcionSignature.setLastError, funcionSignature.throwOnUnmappableChar };
+            object[] ufpAttrFieldValues = { functionSignature.bestFitMapping, functionSignature.charSet, functionSignature.setLastError, functionSignature.throwOnUnmappableChar };
             var ufpAttrBuilder = new CustomAttributeBuilder(ufpAttrCtor, ufpAttrCtorArgValues, ufpAttrNamedFields, ufpAttrFieldValues);
             delBuilder.SetCustomAttribute(ufpAttrBuilder);
-
 
             var ctorBuilder = delBuilder.DefineConstructor(MethodAttributes.RTSpecialName | MethodAttributes.HideBySig | MethodAttributes.Public,
                 CallingConventions.Standard, DELEGATE_CTOR_PARAMETERS);
             ctorBuilder.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
 
             var invokeBuilder = delBuilder.DefineMethod("Invoke", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Virtual | MethodAttributes.NewSlot,
-                CallingConventions.Standard | CallingConventions.HasThis, funcionSignature.returnParameterType, funcionSignature.parameterTypes);
+                CallingConventions.Standard | CallingConventions.HasThis, functionSignature.returnParameter.type, functionSignature.parameters.Select(p => p.type).ToArray());
             invokeBuilder.SetImplementationFlags(MethodImplAttributes.Runtime | MethodImplAttributes.Managed);
+            var invokeReturnParam = invokeBuilder.DefineParameter(0, functionSignature.returnParameter.parameterAttributes, null);
+            foreach (var attr in functionSignature.returnParameter.customAttributes)
+            {
+                invokeReturnParam.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr));
+            }
+            for (int i = 0; i < functionSignature.parameters.Length; i++)
+            {
+                var param = functionSignature.parameters[i];
+                var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
+                foreach(var attr in param.customAttributes)
+                {
+                    paramBuilder.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr));
+                }
+            }
 
             _createdDelegateTypes++;
             return delBuilder.CreateType();
         }
 
+        private static CustomAttributeBuilder GetAttributeBuilderFromAttributeInstance(Attribute attribute)
+        {
+            var attrType = attribute.GetType();
+            switch (attribute)
+            {
+                case MarshalAsAttribute marshalAsAttribute:
+                {
+                    var ctor = attrType.GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS);
+                    object[] ctorArgs = { marshalAsAttribute.Value };
+                    var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
+                            .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
+                    var fieldArgumentValues = new object[fields.Length];
+                    for(int i = 0; i < fields.Length; i++)
+                    {
+                        fieldArgumentValues[i] = fields[i].GetValue(attribute);
+                    }
+
+                    //MarshalAsAttribute has no properties other than Value, which is passed in constructor, hence empty properties array
+                    return new CustomAttributeBuilder(ctor, ctorArgs, Array.Empty<PropertyInfo>(), Array.Empty<object>(),
+                        fields, fieldArgumentValues);
+                }
+                case InAttribute _:
+                {
+                    var ctor = attrType.GetConstructor(Type.EmptyTypes);
+                    return new CustomAttributeBuilder(ctor, Array.Empty<object>(), Array.Empty<PropertyInfo>(), Array.Empty<object>(),
+                        Array.Empty<FieldInfo>(), Array.Empty<object>());
+                }
+                case OutAttribute _:
+                {
+                    var ctor = attrType.GetConstructor(Type.EmptyTypes);
+                    return new CustomAttributeBuilder(ctor, Array.Empty<object>(), Array.Empty<PropertyInfo>(), Array.Empty<object>(),
+                        Array.Empty<FieldInfo>(), Array.Empty<object>());
+                }
+                default:
+                    throw new NotImplementedException($"Attribute {attrType} is not supported");
+            }
+        }
 
         private static string GetDllPath(string dllName)
         {
