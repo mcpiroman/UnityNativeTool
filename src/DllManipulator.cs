@@ -34,6 +34,7 @@ namespace DllManipulator
             mockCallsInAllTypes = false,
         };
 
+        public static TimeSpan? InitializationTime { get; private set; } = null;
         private static DllManipulatorOptions _options;
         private static DllManipulator _singletonInstance = null;
         private static MethodInfo _loadTargetFunctionMethod = null;
@@ -76,6 +77,7 @@ namespace DllManipulator
 
         private static void Initialize()
         {
+            var timer = System.Diagnostics.Stopwatch.StartNew();
             var allTypes = Assembly.GetExecutingAssembly().GetTypes();
 
             foreach (var type in allTypes)
@@ -128,6 +130,9 @@ namespace DllManipulator
             {
                 LoadAll();
             }
+
+            timer.Stop();
+            InitializationTime = timer.Elapsed;
         }
 
         public static void LoadAll()

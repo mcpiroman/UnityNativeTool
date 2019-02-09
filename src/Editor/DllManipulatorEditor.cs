@@ -151,6 +151,13 @@ namespace DllManipulator
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
             }
+
+            if(EditorApplication.isPlaying && DllManipulator.InitializationTime != null)
+            {
+                EditorGUILayout.Space();
+                var time = DllManipulator.InitializationTime.Value;
+                EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
+            }
         }
     }
 }
