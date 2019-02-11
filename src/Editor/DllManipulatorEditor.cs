@@ -15,12 +15,15 @@ namespace DllManipulator
             $"{DllManipulator.DLL_PATH_PATTERN_PROJECT_MACRO} - project folder i.e. one above Assets.");
         private readonly GUIContent DLL_LOADING_MODE_GUI_CONTENT = new GUIContent("DLL loading mode", 
             "Specifies how DLLs and functions will be loaded.\n\n" +
-            "Lazy - Easiest to use and most flexible way. All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.\n\n" +
-            "Preloaded - Slight performance benefit over Lazy mode. All DLLs and functions are loaded at startup (OnEnable()). Calls to unloaded DLLs lead to crash, so in mid-execution it's safest to manipulate DLLs if game is paused.");
+            "Lazy - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.\n\n" +
+            "Preloaded - Slight performance benefit over Lazy mode. All DLLs and functions are loaded at startup (OnEnable()). In mid-execution it's safest to manipulate DLLs if game is paused.");
         private readonly GUIContent LINUX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
-            $"Flags used in dlopen() P/Invoke on Linux systems. Has minor meaning unless library is large.");
+            "Flags used in dlopen() P/Invoke on Linux systems. Has minor meaning unless library is large.");
+        private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
+            "Ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks.\n\n" +
+            "Only in Preloaded mode.");
         private readonly GUIContent MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("Mock all native functions", 
-            $"If true, all native functions in current assembly will be mocked.\n\n" +
+            "If true, all native functions in current assembly will be mocked.\n\n" +
             $"If false, you have to use [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}] in order to select native functions to be mocked.");
         private readonly GUIContent MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT = new GUIContent("Mock native calls in all types", 
             $"If true, calls of native functions in all methods in current assembly will be mocked. This however can cause significant performance issues at startup in big code base. You may use [{nameof(DisableMockingAttribute)}].\n\n" +
@@ -30,6 +33,7 @@ namespace DllManipulator
 
         private bool _showLoadedLibraries = true;
         
+
         public DllManipulatorEditor()
         {
             EditorApplication.pauseStateChanged += _ => Repaint();
@@ -40,19 +44,7 @@ namespace DllManipulator
         {
             var t = (DllManipulator)this.target;
 
-            t.Options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, t.Options.dllPathPattern);
-            if (EditorApplication.isPlaying)
-            {
-                GUI.enabled = false;
-            }
-            t.Options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, t.Options.loadingMode);
-#if UNITY_STANDALONE_LINUX
-            t.Options.linuxDlopenFlags = (LinuxDlopenFlags)EditorGUILayout.EnumPopup(LINUX_DLOPEN_FLAGS_GUI_CONTENT, t.Options.linuxDlopenFlags);
-#endif
-            t.Options.mockAllNativeFunctions = EditorGUILayout.Toggle(MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, t.Options.mockAllNativeFunctions);
-            t.Options.mockCallsInAllTypes = EditorGUILayout.Toggle(MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT, t.Options.mockCallsInAllTypes);
-            GUI.enabled = true;
-
+            DrawOptions(t.Options);
             EditorGUILayout.Space();
 
             var usedDlls = DllManipulator.GetUsedDllsInfos();
@@ -158,6 +150,38 @@ namespace DllManipulator
                 var time = DllManipulator.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
             }
+        }
+
+        private void DrawOptions(DllManipulatorOptions options)
+        {
+            var guiEnabledStack = new Stack<bool>();
+
+            options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
+
+            guiEnabledStack.Push(GUI.enabled);
+            if (EditorApplication.isPlaying)
+            {
+                GUI.enabled = false;
+            }
+            options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
+
+#if UNITY_STANDALONE_LINUX
+            options.linuxDlopenFlags = (LinuxDlopenFlags)EditorGUILayout.EnumPopup(LINUX_DLOPEN_FLAGS_GUI_CONTENT, options.linuxDlopenFlags);
+#endif
+
+            guiEnabledStack.Push(GUI.enabled);
+            if (options.loadingMode != DllLoadingMode.Preload)
+            {
+                options.threadSafe = false;
+                GUI.enabled = false;
+            }
+            options.threadSafe = EditorGUILayout.Toggle(THREAD_SAFE_GUI_CONTENT, options.threadSafe);
+            GUI.enabled = guiEnabledStack.Pop();
+
+            options.mockAllNativeFunctions = EditorGUILayout.Toggle(MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
+
+            options.mockCallsInAllTypes = EditorGUILayout.Toggle(MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT, options.mockCallsInAllTypes);
+            GUI.enabled = guiEnabledStack.Pop();
         }
     }
 }

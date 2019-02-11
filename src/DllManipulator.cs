@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using Harmony;
 using DllManipulator.Internal;
+using System.Threading;
 
 namespace DllManipulator
 {
@@ -30,6 +31,7 @@ namespace DllManipulator
 #endif
             loadingMode = DllLoadingMode.Lazy,
             linuxDlopenFlags = LinuxDlopenFlags.Lazy,
+            threadSafe = false,
             mockAllNativeFunctions = false,
             mockCallsInAllTypes = false,
         };
@@ -37,17 +39,88 @@ namespace DllManipulator
         public static TimeSpan? InitializationTime { get; private set; } = null;
         private static DllManipulatorOptions _options;
         private static DllManipulator _singletonInstance = null;
-        private static MethodInfo _loadTargetFunctionMethod = null;
+        private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
         private static ModuleBuilder _customDelegateTypesModule = null;
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
-        private static FieldInfo _nativeFunctionDelegateField = null;
         private static readonly HashSet<MethodInfo> _nativeFunctionsToMock = new HashSet<MethodInfo>();
         private static readonly Dictionary<MethodInfo, DynamicMethod> _nativeCallMocks = new Dictionary<MethodInfo, DynamicMethod>();
         private static readonly Dictionary<NativeFunctionSignature, Type> _delegateTypesForNativeFunctionSignatures = new Dictionary<NativeFunctionSignature, Type>();
         private static NativeFunction[] _nativeFunctions = null;
-        private static FieldInfo _nativeFunctionsField = null;
         private static int _nativeFunctionsCount = 0;
         private static int _createdDelegateTypes = 0;
+
+        private static FieldInfo __nativeFunctionsField = null;
+        private static FieldInfo NativeFunctionsField
+        {
+            get
+            {
+                if (__nativeFunctionsField == null)
+                {
+                    __nativeFunctionsField = typeof(DllManipulator).GetField(nameof(_nativeFunctions), BindingFlags.NonPublic | BindingFlags.Static);
+                }
+                return __nativeFunctionsField;
+            }
+        }
+        private static FieldInfo __nativeFunctionDelegateField = null;
+        private static FieldInfo NativeFunctionDelegateField
+        {
+            get
+            {
+                if (__nativeFunctionDelegateField == null)
+                {
+                    __nativeFunctionDelegateField = typeof(NativeFunction).GetField(nameof(NativeFunction.@delegate), BindingFlags.Public | BindingFlags.Instance);
+                }
+                return __nativeFunctionDelegateField;
+            }
+        }
+        private static MethodInfo __loadTargetFunctionMethod = null;
+        private static MethodInfo LoadTargetFunctionMethod
+        {
+            get
+            {
+                if (__loadTargetFunctionMethod == null)
+                {
+                    __loadTargetFunctionMethod = typeof(DllManipulator).GetMethod(nameof(LoadTargetFunction), BindingFlags.NonPublic | BindingFlags.Static);
+                }
+                return __loadTargetFunctionMethod;
+            }
+        }
+        private static FieldInfo __nativeFunctionLoadLockField = null;
+        private static FieldInfo NativeFunctionLoadLockField
+        {
+            get
+            {
+                if (__nativeFunctionLoadLockField == null)
+                {
+                    __nativeFunctionLoadLockField = typeof(DllManipulator).GetField(nameof(_nativeFunctionLoadLock), BindingFlags.NonPublic | BindingFlags.Static);
+                }
+                return __nativeFunctionLoadLockField;
+            }
+        }
+        private static MethodInfo __rwlsEnterReadLockMethod = null;
+        private static MethodInfo RwlsEnterReadLocKMethod
+        {
+            get
+            {
+                if (__rwlsEnterReadLockMethod == null)
+                {
+                    __rwlsEnterReadLockMethod = typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.EnterReadLock), BindingFlags.Public | BindingFlags.Instance);
+                }
+                return __rwlsEnterReadLockMethod;
+            }
+        }
+        private static MethodInfo __rwlsExitReadLockMethod = null;
+        private static MethodInfo RwlsExitReadLockMethod
+        {
+            get
+            {
+                if (__rwlsExitReadLockMethod == null)
+                {
+                    __rwlsExitReadLockMethod = typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.ExitReadLock), BindingFlags.Public | BindingFlags.Instance);
+                }
+                return __rwlsExitReadLockMethod;
+            }
+        }
 
 
         private void OnEnable()
@@ -137,41 +210,57 @@ namespace DllManipulator
 
         public static void LoadAll()
         {
-            foreach (var dll in _dlls.Values)
+            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but this function isn't performance critical
+            try 
             {
-                if (dll.handle == IntPtr.Zero)
+                foreach (var dll in _dlls.Values)
                 {
-                    foreach (var nativeFunction in dll.functions)
+                    if (dll.handle == IntPtr.Zero)
                     {
-                        LoadTargetFunction(nativeFunction);
+                        foreach (var nativeFunction in dll.functions)
+                        {
+                            LoadTargetFunction(nativeFunction);
+                        }
                     }
                 }
+            }
+            finally
+            {
+                _nativeFunctionLoadLock.ExitWriteLock();
             }
         }
 
         public static void UnloadAll()
         {
-            foreach (var dll in _dlls.Values)
+            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but this function isn't performance critical
+            try 
             {
-                if (dll.handle != IntPtr.Zero)
+                foreach (var dll in _dlls.Values)
                 {
-                    bool success = SysUnloadDll(dll.handle);
-                    dll.handle = IntPtr.Zero;
-
-                    //Reset error states at unload
-                    dll.loadingError = false; 
-                    dll.symbolError = false; 
-
-                    foreach(var func in dll.functions)
+                    if (dll.handle != IntPtr.Zero)
                     {
-                        func.@delegate = null;
-                    }
+                        bool success = SysUnloadDll(dll.handle);
+                        dll.handle = IntPtr.Zero;
 
-                    if(!success)
-                    {
-                        Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
+                        //Reset error states at unload
+                        dll.loadingError = false;
+                        dll.symbolError = false;
+
+                        foreach (var func in dll.functions)
+                        {
+                            func.@delegate = null;
+                        }
+
+                        if (!success)
+                        {
+                            Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
+                        }
                     }
                 }
+            }
+            finally
+            {
+                _nativeFunctionLoadLock.ExitWriteLock();
             }
         }
 
@@ -275,24 +364,6 @@ namespace DllManipulator
                 mockedDynamicMethod.DefineParameter(i + 1, parameters[i].Attributes, null);
             }
 
-            if (_nativeFunctionsField == null)
-            {
-                _nativeFunctionsField = typeof(DllManipulator).GetField(nameof(_nativeFunctions), BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            if (_nativeFunctionDelegateField == null)
-            {
-                _nativeFunctionDelegateField = typeof(NativeFunction).GetField(nameof(NativeFunction.@delegate), BindingFlags.Public | BindingFlags.Instance);
-            }
-
-            if (_options.loadingMode == DllLoadingMode.Lazy)
-            {
-                if (_loadTargetFunctionMethod == null)
-                {
-                    _loadTargetFunctionMethod = typeof(DllManipulator).GetMethod(nameof(LoadTargetFunction), BindingFlags.NonPublic | BindingFlags.Static);
-                }
-            }
-
             GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters.Length, targetDelegateInvokeMethod, nativeFunctionIndex);
 
             return mockedDynamicMethod;
@@ -300,23 +371,60 @@ namespace DllManipulator
 
         private static void GenerateNativeFunctionMockBody(ILGenerator il, int parameterCount, MethodInfo delegateInvokeMethod, int nativeFunctionIndex)
         {
-            il.Emit(OpCodes.Ldsfld, _nativeFunctionsField);
+            var returnsVoid = delegateInvokeMethod.ReturnType == typeof(void);
+
+            if (_options.threadSafe)
+            {
+                if (!returnsVoid)
+                {
+                    il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
+                }
+
+                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField);
+                il.Emit(OpCodes.Call, RwlsEnterReadLocKMethod);
+                il.BeginExceptionBlock();
+            }
+
+            il.Emit(OpCodes.Ldsfld, NativeFunctionsField);
             il.EmitFastI4Load(nativeFunctionIndex);
             il.Emit(OpCodes.Ldelem_Ref);
             if(_options.loadingMode == DllLoadingMode.Lazy)
             {
+                if(_options.threadSafe)
+                {
+                    throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
+                }
+
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Call, _loadTargetFunctionMethod);
+                il.Emit(OpCodes.Call, LoadTargetFunctionMethod);
             }
-            il.Emit(OpCodes.Ldfld, _nativeFunctionDelegateField);
+            il.Emit(OpCodes.Ldfld, NativeFunctionDelegateField);
             //Seems like no cast is required here
 
             for (int i = 0; i < parameterCount; i++)
             {
                 il.EmitFastArgLoad(i);
             }
-
             il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
+
+            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native method, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
+            {
+                var retLabel = il.DefineLabel();
+                if (!returnsVoid)
+                {
+                    il.Emit(OpCodes.Stloc_0);
+                }
+                il.Emit(OpCodes.Leave_S, retLabel);
+                il.BeginFinallyBlock();
+                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField);
+                il.Emit(OpCodes.Call, RwlsExitReadLockMethod);
+                il.EndExceptionBlock();
+                il.MarkLabel(retLabel);
+                if (!returnsVoid)
+                {
+                    il.Emit(OpCodes.Ldloc_0);
+                }
+            }
             il.Emit(OpCodes.Ret);
         }
 
@@ -440,6 +548,7 @@ namespace DllManipulator
 
         /// <summary>
         /// Loads DLL and function delegate of <paramref name="nativeFunction"/> if not yet loaded.
+        /// To achieve thread safety calls to this method must be synchronized.
         /// Note: This method is being called by dynamically generated code. Be careful when changing its signature.
         /// </summary>
         private static void LoadTargetFunction(NativeFunction nativeFunction)
@@ -502,6 +611,7 @@ namespace DllManipulator
         public string dllPathPattern;
         public DllLoadingMode loadingMode;
         public LinuxDlopenFlags linuxDlopenFlags;
+        public bool threadSafe;
         public bool mockAllNativeFunctions;
         public bool mockCallsInAllTypes;
     }
