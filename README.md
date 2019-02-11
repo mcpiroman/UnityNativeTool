@@ -11,17 +11,18 @@ Doing so involves mocking original native method calls with these made to manual
 - All parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported
 - Fields `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` of `[MarshalAs]` attribute are not supported (due to Mono bug https://github.com/mono/mono/issues/12747)
 - `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them)
-- Multithreading is not supported (native calls from any but Unity main thread)
 
 ## Preformance
 Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Target function is simple addition of 2 floats and was called 1000000 times.
 
 | Test case | Avarage time |
 | --- |:---:|
-| Without using this tool | ~70ms |
+| Without this tool | ~70ms |
 | Lazy mode | ~135ms |
 | Preload mode | ~105ms |
+| With thread safety | ~300ms |
 
+*With uncontended locks.
 ## Instalation
 1. Download and add unity package from releases.
 
@@ -51,6 +52,7 @@ These options are editable via `DllManipulator` script.
     + _Lazy_ - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.
     + _Preloaded_ - Slight preformance benefit over _Lazy_ mode. All DLLs and functions are loaded at startup. Calls to unloaded DLLs lead to crash, so mid-execution it's safest to manipulate DLLs if game is paused.
   * __[Linux only] dlopen flags__ - Flags used in dlopen() P/Invoke on Linux systems. Has minor meaning unless library is large.
+  * __Thread safe__ - When true, ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks. Available only in Preloaded mode.
   * __Mock all native functions__ - If true, all native functions in current assembly will be mocked.
   * __Mock native calls in all types__ - If true, calls of native funcions in all methods in current assembly will be mocked. This however can cause significant preformance issues at startup in big code base.
   
@@ -121,10 +123,9 @@ class AllInOne : MonoBehaviour
 ```
 
 ## Planed features
-- Window editor
 - Native calls inlining
+- Improved interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
-- Thread safety
 - Mac support
 - Possibly break depencency on Harmony
 - Better names
