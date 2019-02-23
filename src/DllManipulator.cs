@@ -28,9 +28,11 @@ namespace DllManipulator
             dllPathPattern = "{assets}/Plugins/__{name}.dll",
 #elif UNITY_STANDALONE_LINUX
             dllPathPattern = "{assets}/Plugins/__{name}.so",
+#elif UNITY_STANDALONE_OSX
+            dllPathPattern = "{assets}/Plugins/__{name}.dylib",
 #endif
             loadingMode = DllLoadingMode.Lazy,
-            linuxDlopenFlags = LinuxDlopenFlags.Lazy,
+            unixDlopenFlags = UnixDlopenFlags.Lazy,
             threadSafe = false,
             mockAllNativeFunctions = false,
             mockCallsInAllTypes = false,
@@ -582,7 +584,9 @@ namespace DllManipulator
 #if UNITY_STANDALONE_WIN
             return PInvokes.Windows_LoadLibrary(filepath);
 #elif UNITY_STANDALONE_LINUX
-            return PInvokes.Linux_dlopen(filepath, (int)_options.linuxDlopenFlags);
+            return PInvokes.Linux_dlopen(filepath, (int)_options.unixDlopenFlags);
+#elif UNITY_STANDALONE_OSX
+            return PInvokes.Osx_dlopen(filepath, (int)_options.unixDlopenFlags);
 #endif
         }
 
@@ -592,6 +596,8 @@ namespace DllManipulator
             return PInvokes.Windows_FreeLibrary(libHandle);
 #elif UNITY_STANDALONE_LINUX
             return PInvokes.Linux_dlclose(libHandle) == 0;
+#elif UNITY_STANDALONE_OSX
+            return PInvokes.Osx_dlclose(libHandle) == 0;
 #endif
         }
 
@@ -601,6 +607,8 @@ namespace DllManipulator
             return PInvokes.Windows_GetProcAddress(libHandle, symbol);
 #elif UNITY_STANDALONE_LINUX
             return PInvokes.Linux_dlsym(libHandle, symbol);
+#elif UNITY_STANDALONE_OSX
+            return PInvokes.Osx_dlsym(libHandle, symbol);
 #endif
         }
     }
@@ -610,7 +618,7 @@ namespace DllManipulator
     {
         public string dllPathPattern;
         public DllLoadingMode loadingMode;
-        public LinuxDlopenFlags linuxDlopenFlags;
+        public UnixDlopenFlags unixDlopenFlags;
         public bool threadSafe;
         public bool mockAllNativeFunctions;
         public bool mockCallsInAllTypes;
@@ -622,7 +630,7 @@ namespace DllManipulator
         Preload
     }
 
-    public enum LinuxDlopenFlags : int
+    public enum UnixDlopenFlags : int
     {
         Lazy = 0x00001,
         Now = 0x00002,

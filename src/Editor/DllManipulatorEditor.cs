@@ -17,8 +17,8 @@ namespace DllManipulator
             "Specifies how DLLs and functions will be loaded.\n\n" +
             "Lazy - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.\n\n" +
             "Preloaded - Slight performance benefit over Lazy mode. All DLLs and functions are loaded at startup (OnEnable()). In mid-execution it's safest to manipulate DLLs if game is paused.");
-        private readonly GUIContent LINUX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
-            "Flags used in dlopen() P/Invoke on Linux systems. Has minor meaning unless library is large.");
+        private readonly GUIContent UNIX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
+            "Flags used in dlopen() P/Invoke on Linux and OSX systems. Has minor meaning unless library is large.");
         private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
             "Ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks.\n\n" +
             "Only in Preloaded mode.");
@@ -165,8 +165,8 @@ namespace DllManipulator
             }
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
 
-#if UNITY_STANDALONE_LINUX
-            options.linuxDlopenFlags = (LinuxDlopenFlags)EditorGUILayout.EnumPopup(LINUX_DLOPEN_FLAGS_GUI_CONTENT, options.linuxDlopenFlags);
+#if UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
+            options.unixDlopenFlags = (UnixDlopenFlags)EditorGUILayout.EnumPopup(UNIX_DLOPEN_FLAGS_GUI_CONTENT, options.unixDlopenFlags);
 #endif
 
             guiEnabledStack.Push(GUI.enabled);
