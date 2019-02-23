@@ -1,9 +1,13 @@
 # UnityNativeTool
-Tool designed mainly to solve old problem with unloading native plugins without reopening Unity editor, with vary little changes to code base and low overhead. It enables to replace plugin files between game executions or even while playing.  
+Tool designed mainly to solve old problem with unloading native plugins without reopening Unity editor; with vary little changes to code base and low overhead. It enables to replace plugin files between game executions or even while playing.  
 Doing so involves mocking original native method calls with these made to manually loaded libraries by P/Invokes. Although works in builded game, it's intended to use in edtior.
 
+## Systems
+- Windows
+- Linux
+- Mac (not tested)
+
 ## Requirements and dependencies
-- Windows or Linux
 - [Harmony](https://github.com/pardeike/Harmony) (already included in release package)
 - Api Compatibility Level >= .NET 4.x
 
@@ -20,11 +24,11 @@ Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Targe
 | Without this tool | ~70ms |
 | Lazy mode | ~135ms |
 | Preload mode | ~105ms |
-| With thread safety | ~300ms |
+| With thread safety* | ~300ms |
 
 *With uncontended locks.
 ## Instalation
-1. Download and add unity package from releases.
+1. Download and add unity package from [releases](https://github.com/MCpiroman/UnityNativeTool/releases).
 
 2. Set _Api Compatibility Level_ to .NET 4.x or above.  
    Edit > Project Settings > Player > Other Settings > Api Compatibility Level
@@ -47,11 +51,11 @@ All plugins under controll of this tool will be unloaded once game stops. To unl
   
 #### __Options__
 These options are editable via `DllManipulator` script.
-  * __DLL path pattern__ - Path at which mocked plugin files are located. Default is *Assets/Plugins/\__NameOfPlugin[.dll|.so]*. Can be the same as path that Unity uses for plugins.
+  * __DLL path pattern__ - Path at which mocked plugin files are located. Default is *Assets/Plugins/\__NameOfPlugin[.dll|.so|.dylib]*. Can be the same as path that Unity uses for plugins.
   * __DLL loading mode__ - Specifies how DLLs and functions will be loaded.
     + _Lazy_ - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.
     + _Preloaded_ - Slight preformance benefit over _Lazy_ mode. All DLLs and functions are loaded at startup. Calls to unloaded DLLs lead to crash, so mid-execution it's safest to manipulate DLLs if game is paused.
-  * __[Linux only] dlopen flags__ - Flags used in dlopen() P/Invoke on Linux systems. Has minor meaning unless library is large.
+  * __dlopen flags [Linux and Mac only]__ - Flags used in dlopen() P/Invoke on Linux and OSX systems. Has minor meaning unless library is large.
   * __Thread safe__ - When true, ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks. Available only in Preloaded mode.
   * __Mock all native functions__ - If true, all native functions in current assembly will be mocked.
   * __Mock native calls in all types__ - If true, calls of native funcions in all methods in current assembly will be mocked. This however can cause significant preformance issues at startup in big code base.
@@ -126,6 +130,5 @@ class AllInOne : MonoBehaviour
 - Native calls inlining
 - Improved interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
-- Mac support
 - Possibly break depencency on Harmony
 - Better names
