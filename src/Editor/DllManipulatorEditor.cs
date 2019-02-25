@@ -10,7 +10,7 @@ namespace DllManipulator
     {
         private readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
             "Available macros:\n\n" +
-            $"{DllManipulator.DLL_PATH_PATTERN_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
+            $"{DllManipulator.DLL_PATH_PATTERN_DLL_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_ASSETS_MACRO} - assets folder of current project.\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_PROJECT_MACRO} - project folder i.e. one above Assets.");
         private readonly GUIContent DLL_LOADING_MODE_GUI_CONTENT = new GUIContent("DLL loading mode", 
@@ -22,13 +22,21 @@ namespace DllManipulator
         private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
             "Ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks.\n\n" +
             "Only in Preloaded mode.");
+        private readonly GUIContent CRASH_LOGS_GUI_CONTENT = new GUIContent("Crash logs",
+            "Logs each native call to file. In case of crash or hang caused by native function, you can than see what function was that, along with arguments and, optionally, stack trace.\n\n" +
+            "Overhead is HIGH (on poor PC there might be just few native calls per update to disturb 60 fps.)");
+        private readonly GUIContent CRASH_LOGS_DIR_GUI_CONTENT = new GUIContent("Logs directory",
+            "Path to directory in which crash logs will be stored. You can use macros as in DLL path. Note that this file(s) will usually exist during majority of game execution.");
+        private readonly GUIContent CRASH_LOGS_STACK_TRACE_GUI_CONTENT = new GUIContent("Stack trace",
+            "Whether to append stack trace in crash log.\n\n" +
+            "Overhead is about 4 times higher.");
         private readonly GUIContent MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("Mock all native functions", 
             "If true, all native functions in current assembly will be mocked.\n\n" +
             $"If false, you have to use [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}] in order to select native functions to be mocked.");
         private readonly GUIContent MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT = new GUIContent("Mock native calls in all types", 
-            $"If true, calls of native functions in all methods in current assembly will be mocked. This however can cause significant performance issues at startup in big code base. You may use [{nameof(DisableMockingAttribute)}].\n\n" +
+            $"If true, calls of native functions in all methods in current assembly will be mocked. In big code base it can cause lag at startup. You may use [{nameof(DisableMockingAttribute)}].\n\n" +
             $"If false, you have to use [{nameof(MockNativeCallsAttribute)}] in order to mock native function calls.");
-        private readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [DANGEROUS!]",
+        private readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
             "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
 
         private bool _showLoadedLibraries = true;
@@ -147,6 +155,7 @@ namespace DllManipulator
             if(EditorApplication.isPlaying && DllManipulator.InitializationTime != null)
             {
                 EditorGUILayout.Space();
+                EditorGUILayout.Space();
                 var time = DllManipulator.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
             }
@@ -177,6 +186,20 @@ namespace DllManipulator
             }
             options.threadSafe = EditorGUILayout.Toggle(THREAD_SAFE_GUI_CONTENT, options.threadSafe);
             GUI.enabled = guiEnabledStack.Pop();
+
+            options.crashLogs = EditorGUILayout.Toggle(CRASH_LOGS_GUI_CONTENT, options.crashLogs);
+
+            if (options.crashLogs)
+            {
+                var prevIndent = EditorGUI.indentLevel;
+
+                EditorGUI.indentLevel += 1;
+                options.crashLogsDir = EditorGUILayout.TextField(CRASH_LOGS_DIR_GUI_CONTENT, options.crashLogsDir);
+
+                options.crashLogsStackTrace = EditorGUILayout.Toggle(CRASH_LOGS_STACK_TRACE_GUI_CONTENT, options.crashLogsStackTrace);
+
+                EditorGUI.indentLevel = prevIndent;
+            }
 
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
