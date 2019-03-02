@@ -57,6 +57,7 @@ namespace DllManipulator
         private static NativeFunction[] _nativeFunctions = null;
         private static int _nativeFunctionsCount = 0;
         private static int _createdDelegateTypes = 0;
+        private static int _lastNativeCallIndex = 0; //Use with synchronization
 
 
         private void OnEnable()
@@ -493,7 +494,7 @@ namespace DllManipulator
                 il.Emit(OpCodes.Ldelem_Ref);
             }
             il.Emit(OpCodes.Ldfld, NativeFunctionDelegateField.Value);
-            //Seems like no cast is required here
+            //Seems like cast to concrete delegate type is not required here
 
             for (int i = 0; i < parameterCount; i++)
             {
@@ -501,7 +502,7 @@ namespace DllManipulator
             }
             il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
 
-            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native method, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
+            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
             {
                 var retLabel = il.DefineLabel();
                 if (!returnsVoid)
@@ -557,23 +558,35 @@ namespace DllManipulator
         /// Logs native function's call to file. If that file exists, it is overwritten. One file is maintained for each thread.
         /// Note: This method is being called by dynamically generated code. Be careful when changing its signature.
         /// </summary>
-        private static void WriteNativeCrashLog(NativeFunction nativeFunction, object[] parameters)
+        private static void WriteNativeCrashLog(NativeFunction nativeFunction, object[] arguments)
         {
             var threadId = Thread.CurrentThread.ManagedThreadId;
-            var filePath = Path.Combine(ApplyDirectoryPathMacros(_options.crashLogsDir), CRASH_FILE_NAME_PREFIX + threadId + ".log");
-            using (var file = File.Open(filePath, FileMode.Create)) //Truncates file if exists
+            var filePath = Path.Combine(ApplyDirectoryPathMacros(_options.crashLogsDir), $"{CRASH_FILE_NAME_PREFIX}tid{threadId}.log");
+            using (var file = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.Read)) //Truncates file if exists
             {
                 using(var writer = new StreamWriter(file))
                 {
-                    writer.Write($"[{nativeFunction.identity.containingDllName}] {nativeFunction.identity.symbol}");
-                    writer.Write('(');
-                    if (parameters.Length != 0)
+                    writer.Write("function: ");
+                    writer.WriteLine(nativeFunction.identity.symbol);
+
+                    writer.Write($"from DLL: ");
+                    writer.WriteLine(nativeFunction.containingDll.name);
+
+                    writer.Write($"  at path: ");
+                    writer.WriteLine(nativeFunction.containingDll.path);
+
+                    writer.Write("arguments: ");
+                    if (arguments.Length == 0)
+                    {
+                        writer.Write("no arguments");
+                    }
+                    else
                     {
                         writer.WriteLine();
-                        for (int i = 0; i < parameters.Length; i++)
+                        for (int i = 0; i < arguments.Length; i++)
                         {
-                            writer.Write("  ");
-                            var param = parameters[i];
+                            writer.Write($"  {i}:".PadRight(5));
+                            var param = arguments[i];
                             if (param == null)
                             {
                                 writer.Write("null");
@@ -600,36 +613,28 @@ namespace DllManipulator
                                         break;
                                 }
                             }
-
-                            if (i < parameters.Length - 1)
-                            {
-                                writer.Write(',');
-                            }
                             writer.WriteLine();
                         }
                     }
-                    writer.WriteLine(')');
-                    writer.WriteLine();
 
-                    writer.WriteLine($"DLL: \"{nativeFunction.containingDll.name}\" at path \"{nativeFunction.containingDll.path}\"");
-                    writer.WriteLine();
-
-                    writer.Write("Thread: ");
+                    writer.Write("thread: ");
                     if(threadId == _unityMainThreadId)
                     {
-                        writer.Write("Unity main thread");
+                        writer.WriteLine("unity main thread");
                     }
                     else
                     {
-                        writer.Write($"{Thread.CurrentThread.Name}({threadId})");
+                        writer.WriteLine($"{Thread.CurrentThread.Name}({threadId})");
                     }
-                    writer.WriteLine();
+
+                    var nativeCallIndex = Interlocked.Increment(ref _lastNativeCallIndex) - 1;
+                    writer.Write("call index: ");
+                    writer.WriteLine(nativeCallIndex);
 
                     if (_options.crashLogsStackTrace)
                     {
                         var stackTrace = new System.Diagnostics.StackTrace(1); //Skip this frame
-                        writer.WriteLine();
-                        writer.WriteLine("Stack trace:");
+                        writer.WriteLine("stack trace:");
                         writer.Write(stackTrace.ToString());
                     }
                 }

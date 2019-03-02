@@ -22,9 +22,15 @@ namespace DllManipulator
         private static readonly Lazy<MethodInfo> WriteNativeCrashLogMethod = new Lazy<MethodInfo>(
             () => typeof(DllManipulator).GetMethod(nameof(WriteNativeCrashLog), BindingFlags.NonPublic | BindingFlags.Static));
 
+        /// <summary>
+        /// ReaderWriterLockSlim.EnterReadLock()
+        /// </summary>
         private static readonly Lazy<MethodInfo> RwlsEnterReadLocKMethod = new Lazy<MethodInfo>(
             () => typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.EnterReadLock), BindingFlags.Public | BindingFlags.Instance));
 
+        /// <summary>
+        /// ReaderWriterLockSlim.ExitReadLock()
+        /// </summary>
         private static readonly Lazy<MethodInfo> RwlsExitReadLockMethod = new Lazy<MethodInfo>(
             () => typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.ExitReadLock), BindingFlags.Public | BindingFlags.Instance));
     }

@@ -24,11 +24,13 @@ namespace DllManipulator
             "Only in Preloaded mode.");
         private readonly GUIContent CRASH_LOGS_GUI_CONTENT = new GUIContent("Crash logs",
             "Logs each native call to file. In case of crash or hang caused by native function, you can than see what function was that, along with arguments and, optionally, stack trace.\n\n" +
+            "In multi-threaded scenario there will be one file for each thread and you'll have to guess the right one (call index will be a hint).\n\n" +
+            "Note that existence of log files doesn't mean the crash was caused by any tracked native function.\n\n" +
             "Overhead is HIGH (on poor PC there might be just few native calls per update to disturb 60 fps.)");
         private readonly GUIContent CRASH_LOGS_DIR_GUI_CONTENT = new GUIContent("Logs directory",
             "Path to directory in which crash logs will be stored. You can use macros as in DLL path. Note that this file(s) will usually exist during majority of game execution.");
         private readonly GUIContent CRASH_LOGS_STACK_TRACE_GUI_CONTENT = new GUIContent("Stack trace",
-            "Whether to append stack trace in crash log.\n\n" +
+            "Whether to include stack trace in crash log.\n\n" +
             "Overhead is about 4 times higher.");
         private readonly GUIContent MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("Mock all native functions", 
             "If true, all native functions in current assembly will be mocked.\n\n" +
