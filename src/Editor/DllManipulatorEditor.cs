@@ -16,7 +16,7 @@ namespace DllManipulator
         private readonly GUIContent DLL_LOADING_MODE_GUI_CONTENT = new GUIContent("DLL loading mode", 
             "Specifies how DLLs and functions will be loaded.\n\n" +
             "Lazy - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.\n\n" +
-            "Preloaded - Slight performance benefit over Lazy mode. All DLLs and functions are loaded at startup (OnEnable()). In mid-execution it's safest to manipulate DLLs if game is paused.");
+            "Preloaded - Slight performance benefit over Lazy mode. All declared DLLs and functions are loaded at startup (OnEnable()). Mid-execution it's not safe to unload them unless game is paused.");
         private readonly GUIContent UNIX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
             "Flags used in dlopen() P/Invoke on Linux and OSX systems. Has minor meaning unless library is large.");
         private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
@@ -35,9 +35,6 @@ namespace DllManipulator
         private readonly GUIContent MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("Mock all native functions", 
             "If true, all native functions in current assembly will be mocked.\n\n" +
             $"If false, you have to use [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}] in order to select native functions to be mocked.");
-        private readonly GUIContent MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT = new GUIContent("Mock native calls in all types", 
-            $"If true, calls of native functions in all methods in current assembly will be mocked. In big code base it can cause lag at startup. You may use [{nameof(DisableMockingAttribute)}].\n\n" +
-            $"If false, you have to use [{nameof(MockNativeCallsAttribute)}] in order to mock native function calls.");
         private readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
             "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
 
@@ -205,7 +202,6 @@ namespace DllManipulator
 
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
-            options.mockCallsInAllTypes = EditorGUILayout.Toggle(MOCK_CALLS_IN_ALL_TYPES_GUI_CONTENT, options.mockCallsInAllTypes);
             GUI.enabled = guiEnabledStack.Pop();
         }
     }

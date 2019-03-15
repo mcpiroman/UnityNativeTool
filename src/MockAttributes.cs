@@ -21,15 +21,6 @@ namespace DllManipulator
     }
 
     /// <summary>
-    /// Calls of suitably tagged native functions in all methods declared inside types with this attribute will be mocked. This attribute is redundant if <see cref="DllManipulatorOptions.mockCallsInAllTypes"/> is true.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-    public class MockNativeCallsAttribute : Attribute
-    {
-
-    }
-
-    /// <summary>
     /// Calls of native functions with this attribute won't be mocked.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]

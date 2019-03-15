@@ -4,15 +4,15 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Threading;
-using UnityEngine;
-using Harmony;
-using DllManipulator.Internal;
 using System.IO;
+using UnityEngine;
+using DllManipulator.Internal;
 
 namespace DllManipulator
 {
-    //Note: "DLL" used in this code refers to Dynamically Loaded Library, and not to the .dll file extension on Windows.
+    //Note "DLL" used in this code refers to Dynamically Loaded Library, and not to the .dll file extension on Windows.
     public partial class DllManipulator : MonoBehaviour
     {
         public const string DLL_PATH_PATTERN_DLL_NAME_MACRO = "{name}";
@@ -40,7 +40,6 @@ namespace DllManipulator
             crashLogsDir = "{assets}/",
             crashLogsStackTrace = false,
             mockAllNativeFunctions = false,
-            mockCallsInAllTypes = false,
         };
 
         public static TimeSpan? InitializationTime { get; private set; } = null;
@@ -51,8 +50,7 @@ namespace DllManipulator
         private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
         private static ModuleBuilder _customDelegateTypesModule = null;
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
-        private static readonly HashSet<MethodInfo> _nativeFunctionsToMock = new HashSet<MethodInfo>();
-        private static readonly Dictionary<MethodInfo, DynamicMethod> _nativeCallMocks = new Dictionary<MethodInfo, DynamicMethod>();
+        private static readonly Dictionary<MethodInfo, DynamicMethod> _nativeFunctionMocks = new Dictionary<MethodInfo, DynamicMethod>();
         private static readonly Dictionary<NativeFunctionSignature, Type> _delegateTypesForNativeFunctionSignatures = new Dictionary<NativeFunctionSignature, Type>();
         private static NativeFunction[] _nativeFunctions = null;
         private static int _nativeFunctionsCount = 0;
@@ -84,11 +82,13 @@ namespace DllManipulator
 
         private void OnApplicationQuit()
         {
+            //FIXME: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
+            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function are just reloaded so we end up with loaded DLL after game exit.
+
             UnloadAll();
             ForgetAllDlls();
             ClearCrashLogs();
         }
-
 
         private static void Initialize()
         {
@@ -103,45 +103,16 @@ namespace DllManipulator
                     {
                         if (!method.IsDefined(typeof(DisableMockingAttribute)) && _options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
                         {
-                            _nativeFunctionsToMock.Add(method);
+                            var methodMock = GetNativeFunctionMock(method);
+                            Memory.MarkForNoInlining(method);
+                            PrepareDynamicMethod(methodMock);
+                            Memory.DetourMethod(method, methodMock);
                         }
                     }
                 }
             }
 
-            if (_nativeFunctionsToMock.Count == 0)
-            {
-                Debug.LogWarning($"Didn't find any native functions to mock.");
-                return;
-            }
-
-            var harmony = HarmonyInstance.Create(nameof(DllManipulator));
-            var callingMethodTranspiler = new HarmonyMethod(typeof(DllManipulator).GetMethod(nameof(CallingMethodTranspiler), BindingFlags.Static | BindingFlags.NonPublic));
-
-            int mockedNativeFunctionCalls = 0;
-            foreach (var type in allTypes)
-            {
-                if (_options.mockCallsInAllTypes || type.IsDefined(typeof(MockNativeCallsAttribute)))
-                {
-                    foreach (var method in type.GetRuntimeMethods().Cast<MethodBase>()
-                        .Concat(type.GetConstructors(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)))
-                    {
-                        if (!(method is DynamicMethod) && method.DeclaringType == type && method.GetMethodBody() != null)
-                        {
-                            harmony.Patch(method, transpiler: callingMethodTranspiler);
-                            mockedNativeFunctionCalls++;
-                        }
-                    }
-                }
-            }
-
-            if(mockedNativeFunctionCalls == 0)
-            {
-                Debug.LogWarning($"Found native method(s) to mock, but no call to any.");
-                return;
-            }
-
-            if(_options.loadingMode == DllLoadingMode.Preload)
+            if (_options.loadingMode == DllLoadingMode.Preload)
             {
                 LoadAll();
             }
@@ -152,7 +123,7 @@ namespace DllManipulator
 
         public static void LoadAll()
         {
-            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but this function isn't performance critical
+            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
             try 
             {
                 foreach (var dll in _dlls.Values)
@@ -174,7 +145,7 @@ namespace DllManipulator
 
         public static void UnloadAll()
         {
-            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but this function isn't performance critical
+            _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
             try 
             {
                 foreach (var dll in _dlls.Values)
@@ -253,84 +224,212 @@ namespace DllManipulator
         }
 
         /// <summary>
-        /// Transplits methods that may be calling native functions (extern methods with [ImportDll] attribute) by replacing that call with new, dynamic method.
+        /// Creates and registers new DynamicMethod that mocks <paramref name="nativeMethod"/> and itself calls dynamically loaded function from DLL.
         /// </summary>
-        private static IEnumerable<CodeInstruction> CallingMethodTranspiler(IEnumerable<CodeInstruction> instructions)
+        private static DynamicMethod GetNativeFunctionMock(MethodInfo nativeMethod)
         {
-            foreach (var instr in instructions)
+            if (!_nativeFunctionMocks.TryGetValue(nativeMethod, out var mockedDynamicMethod))
             {
-                if (instr.opcode == OpCodes.Call)
-                {
-                    if (instr.operand is MethodInfo nativeMethod && _nativeFunctionsToMock.Contains(nativeMethod))
-                    {
-                        if (!_nativeCallMocks.TryGetValue(nativeMethod, out var newMethod))
-                        {
-                            newMethod = CreateNewNativeFunctionMock(nativeMethod);
-                            _nativeCallMocks.Add(nativeMethod, newMethod);
-                        }
+                var dllImportAttr = nativeMethod.GetCustomAttribute<DllImportAttribute>();
+                var dllName = dllImportAttr.Value;
+                string dllPath;
+                var nativeFunctionSymbol = dllImportAttr.EntryPoint;
 
-                        yield return new CodeInstruction(OpCodes.Call, newMethod);
-                    }
-                    else
-                    {
-                        yield return instr;
-                    }
+                if (_dlls.TryGetValue(dllName, out var dll))
+                {
+                    dllPath = dll.path;
                 }
                 else
                 {
-                    yield return instr;
+                    dllPath = ApplyDirectoryPathMacros(_options.dllPathPattern).Replace(DLL_PATH_PATTERN_DLL_NAME_MACRO, dllName);
+                    dll = new NativeDll(dllName, dllPath);
+                    _dlls.Add(dllName, dll);
+                }
+
+                var nativeFunction = new NativeFunction(new NativeFunctionIdentity(nativeFunctionSymbol, dllName), dll);
+                dll.functions.Add(nativeFunction);
+                var nativeFunctionIndex = _nativeFunctionsCount;
+                AddNativeFunction(nativeFunction);
+                nativeFunction.index = nativeFunctionIndex;
+
+                var parameters = nativeMethod.GetParameters();
+                var parameterTypes = parameters.Select(x => x.ParameterType).ToArray();
+                var nativeMethodSignature = new NativeFunctionSignature(nativeMethod, dllImportAttr.CallingConvention,
+                    dllImportAttr.BestFitMapping, dllImportAttr.CharSet, dllImportAttr.SetLastError, dllImportAttr.ThrowOnUnmappableChar);
+                if (!_delegateTypesForNativeFunctionSignatures.TryGetValue(nativeMethodSignature, out nativeFunction.delegateType))
+                {
+                    nativeFunction.delegateType = CreateDelegateTypeForNativeFunctionSignature(nativeMethodSignature);
+                    _delegateTypesForNativeFunctionSignatures.Add(nativeMethodSignature, nativeFunction.delegateType);
+                }
+                var targetDelegateInvokeMethod = nativeFunction.delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
+
+                mockedDynamicMethod = new DynamicMethod(dllName + ":::" + nativeFunctionSymbol, nativeMethod.ReturnType, parameterTypes, typeof(DllManipulator));
+                mockedDynamicMethod.DefineParameter(0, nativeMethod.ReturnParameter.Attributes, null);
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    mockedDynamicMethod.DefineParameter(i + 1, parameters[i].Attributes, null);
+                }
+
+                GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters.Length, parameterTypes, targetDelegateInvokeMethod, nativeFunctionIndex);
+            }
+
+            return mockedDynamicMethod;
+        }
+
+        private static void GenerateNativeFunctionMockBody(ILGenerator il, int parameterCount, Type[] parameterTypes, MethodInfo delegateInvokeMethod, int nativeFunctionIndex)
+        {
+            var returnsVoid = delegateInvokeMethod.ReturnType == typeof(void);
+
+            if (_options.threadSafe)
+            {
+                if (!returnsVoid)
+                {
+                    il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
+                }
+
+                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
+                il.Emit(OpCodes.Call, RwlsEnterReadLocKMethod.Value);
+                il.BeginExceptionBlock();
+            }
+
+            il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value);
+            il.EmitFastI4Load(nativeFunctionIndex);
+            il.Emit(OpCodes.Ldelem_Ref);
+            if (_options.loadingMode == DllLoadingMode.Lazy)
+            {
+                if (_options.threadSafe)
+                {
+                    throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
+                }
+
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Call, LoadTargetFunctionMethod.Value);
+            }
+            if (_options.crashLogs)
+            {
+                il.EmitFastI4Load(parameterCount); //Generate array of arguments
+                il.Emit(OpCodes.Newarr, typeof(object));
+                for (int i = 0; i < parameterCount; i++)
+                {
+                    il.Emit(OpCodes.Dup);
+                    il.EmitFastI4Load(i);
+                    il.EmitFastArgLoad(i);
+                    if (parameterTypes[i].IsValueType)
+                    {
+                        il.Emit(OpCodes.Box, parameterTypes[i]);
+                    }
+                    il.Emit(OpCodes.Stelem_Ref);
+                }
+                il.Emit(OpCodes.Call, WriteNativeCrashLogMethod.Value);
+
+                il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value); //Once again load native function (previous one was consumed by log method)
+                il.EmitFastI4Load(nativeFunctionIndex);
+                il.Emit(OpCodes.Ldelem_Ref);
+            }
+            il.Emit(OpCodes.Ldfld, NativeFunctionDelegateField.Value);
+            //Seems like cast to concrete delegate type is not required here
+
+            for (int i = 0; i < parameterCount; i++)
+            {
+                il.EmitFastArgLoad(i);
+            }
+            il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
+
+            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
+            {
+                var retLabel = il.DefineLabel();
+                if (!returnsVoid)
+                {
+                    il.Emit(OpCodes.Stloc_0);
+                }
+                il.Emit(OpCodes.Leave_S, retLabel);
+                il.BeginFinallyBlock();
+                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
+                il.Emit(OpCodes.Call, RwlsExitReadLockMethod.Value);
+                il.EndExceptionBlock();
+                il.MarkLabel(retLabel);
+                if (!returnsVoid)
+                {
+                    il.Emit(OpCodes.Ldloc_0);
                 }
             }
+            il.Emit(OpCodes.Ret);
         }
 
         /// <summary>
-        /// Creates and registers new DynamicMethod that mocks <paramref name="nativeMethod"/> and itself calls dynamically loaded function from DLL.
+        /// Prepares <paramref name="method"/> to be injected (aka. patched) into other method
         /// </summary>
-        private static DynamicMethod CreateNewNativeFunctionMock(MethodInfo nativeMethod)
+        private static void PrepareDynamicMethod(DynamicMethod method)
         {
-            var dllImportAttr = nativeMethod.GetCustomAttribute<DllImportAttribute>();
-            var dllName = dllImportAttr.Value;
-            string dllPath;
-            var nativeFunctionSymbol = dllImportAttr.EntryPoint;
+            //
+            // This method is essentially copy of DynamicTools.PrepareDynamicMethod(DynamicMethod method) from https://github.com/pardeike/Harmony
+            //
 
-            if (_dlls.TryGetValue(dllName, out var dll))
+            var nonPublicInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+            var nonPublicStatic = BindingFlags.NonPublic | BindingFlags.Static;
+
+            // on mono, just call 'CreateDynMethod'
+            //
+            var m_CreateDynMethod = method.GetType().GetMethod("CreateDynMethod", nonPublicInstance);
+            if (m_CreateDynMethod != null)
             {
-                dllPath = dll.path;
+                var h_CreateDynMethod = MethodInvoker.GetHandler(m_CreateDynMethod);
+                h_CreateDynMethod(method, new object[0]);
+                return;
             }
+
+            // on all .NET Core versions, call 'RuntimeHelpers._CompileMethod' but with a different parameter:
+            //
+            var m__CompileMethod = typeof(RuntimeHelpers).GetMethod("_CompileMethod", nonPublicStatic);
+            var h__CompileMethod = MethodInvoker.GetHandler(m__CompileMethod);
+
+            var m_GetMethodDescriptor = method.GetType().GetMethod("GetMethodDescriptor", nonPublicInstance);
+            var h_GetMethodDescriptor = MethodInvoker.GetHandler(m_GetMethodDescriptor);
+            var handle = (RuntimeMethodHandle)h_GetMethodDescriptor(method, new object[0]);
+
+            // 1) RuntimeHelpers._CompileMethod(handle.GetMethodInfo())
+            //
+            object runtimeMethodInfo = null;
+            var f_m_value = handle.GetType().GetField("m_value", nonPublicInstance);
+            if (f_m_value != null)
+                runtimeMethodInfo = f_m_value.GetValue(handle);
             else
             {
-                dllPath = ApplyDirectoryPathMacros(_options.dllPathPattern).Replace(DLL_PATH_PATTERN_DLL_NAME_MACRO, dllName);
-                dll = new NativeDll(dllName, dllPath);
-                _dlls.Add(dllName, dll);
+                var m_GetMethodInfo = handle.GetType().GetMethod("GetMethodInfo", nonPublicInstance);
+                if (m_GetMethodInfo != null)
+                {
+                    var h_GetMethodInfo = MethodInvoker.GetHandler(m_GetMethodInfo);
+                    runtimeMethodInfo = h_GetMethodInfo(handle, new object[0]);
+                }
             }
-
-            var nativeFunction = new NativeFunction(new NativeFunctionIdentity(nativeFunctionSymbol, dllName), dll);
-            dll.functions.Add(nativeFunction);
-            var nativeFunctionIndex = _nativeFunctionsCount;
-            AddNativeFunction(nativeFunction);
-            nativeFunction.index = nativeFunctionIndex;
-
-            var parameters = nativeMethod.GetParameters();
-            var parameterTypes = parameters.Select(x => x.ParameterType).ToArray();
-            var nativeMethodSignature = new NativeFunctionSignature(nativeMethod, dllImportAttr.CallingConvention, 
-                dllImportAttr.BestFitMapping, dllImportAttr.CharSet, dllImportAttr.SetLastError, dllImportAttr.ThrowOnUnmappableChar);
-            if (!_delegateTypesForNativeFunctionSignatures.TryGetValue(nativeMethodSignature, out nativeFunction.delegateType))
+            if (runtimeMethodInfo != null)
             {
-                nativeFunction.delegateType = CreateDelegateTypeForNativeFunctionSignature(nativeMethodSignature);
-                _delegateTypesForNativeFunctionSignatures.Add(nativeMethodSignature, nativeFunction.delegateType);
+                try
+                {
+                    // this can throw BadImageFormatException "An attempt was made to load a program with an incorrect format"
+                    h__CompileMethod(null, new object[] { runtimeMethodInfo });
+                    return;
+                }
+                catch (Exception)
+                {
+                }
             }
-            var targetDelegateInvokeMethod = nativeFunction.delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
 
-            var mockedDynamicMethod = new DynamicMethod(dllName + ":::" + nativeFunctionSymbol, nativeMethod.ReturnType, parameterTypes, typeof(DllManipulator));
-            mockedDynamicMethod.DefineParameter(0, nativeMethod.ReturnParameter.Attributes, null);
-            for (int i = 0; i < parameters.Length; i++)
+            // 2) RuntimeHelpers._CompileMethod(handle.Value)
+            //
+            if (m__CompileMethod.GetParameters()[0].ParameterType.IsAssignableFrom(handle.Value.GetType()))
             {
-                mockedDynamicMethod.DefineParameter(i + 1, parameters[i].Attributes, null);
+                h__CompileMethod(null, new object[] { handle.Value });
+                return;
             }
 
-            GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters.Length, parameterTypes, targetDelegateInvokeMethod, nativeFunctionIndex);
-
-            return mockedDynamicMethod;
+            // 3) RuntimeHelpers._CompileMethod(handle)
+            //
+            if (m__CompileMethod.GetParameters()[0].ParameterType.IsAssignableFrom(handle.GetType()))
+            {
+                h__CompileMethod(null, new object[] { handle });
+                return;
+            }
         }
 
         /// <summary>
@@ -443,86 +542,6 @@ namespace DllManipulator
             }
         }
 
-        private static void GenerateNativeFunctionMockBody(ILGenerator il, int parameterCount, Type[] parameterTypes, MethodInfo delegateInvokeMethod, int nativeFunctionIndex)
-        {
-            var returnsVoid = delegateInvokeMethod.ReturnType == typeof(void);
-
-            if (_options.threadSafe)
-            {
-                if (!returnsVoid)
-                {
-                    il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
-                }
-
-                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
-                il.Emit(OpCodes.Call, RwlsEnterReadLocKMethod.Value);
-                il.BeginExceptionBlock();
-            }
-
-            il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value);
-            il.EmitFastI4Load(nativeFunctionIndex);
-            il.Emit(OpCodes.Ldelem_Ref);
-            if (_options.loadingMode == DllLoadingMode.Lazy)
-            {
-                if (_options.threadSafe)
-                {
-                    throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
-                }
-
-                il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Call, LoadTargetFunctionMethod.Value);
-            }
-            if(_options.crashLogs)
-            {
-                il.EmitFastI4Load(parameterCount); //Generate array of arguments
-                il.Emit(OpCodes.Newarr, typeof(object));
-                for (int i = 0; i < parameterCount; i++)
-                {
-                    il.Emit(OpCodes.Dup);
-                    il.EmitFastI4Load(i);
-                    il.EmitFastArgLoad(i);
-                    if(parameterTypes[i].IsValueType)
-                    {
-                        il.Emit(OpCodes.Box, parameterTypes[i]);
-                    }
-                    il.Emit(OpCodes.Stelem_Ref);
-                }
-                il.Emit(OpCodes.Call, WriteNativeCrashLogMethod.Value);
-
-                il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value); //Once again load native function (previous one was consumed by log method)
-                il.EmitFastI4Load(nativeFunctionIndex);
-                il.Emit(OpCodes.Ldelem_Ref);
-            }
-            il.Emit(OpCodes.Ldfld, NativeFunctionDelegateField.Value);
-            //Seems like cast to concrete delegate type is not required here
-
-            for (int i = 0; i < parameterCount; i++)
-            {
-                il.EmitFastArgLoad(i);
-            }
-            il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
-
-            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
-            {
-                var retLabel = il.DefineLabel();
-                if (!returnsVoid)
-                {
-                    il.Emit(OpCodes.Stloc_0);
-                }
-                il.Emit(OpCodes.Leave_S, retLabel);
-                il.BeginFinallyBlock();
-                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
-                il.Emit(OpCodes.Call, RwlsExitReadLockMethod.Value);
-                il.EndExceptionBlock();
-                il.MarkLabel(retLabel);
-                if (!returnsVoid)
-                {
-                    il.Emit(OpCodes.Ldloc_0);
-                }
-            }
-            il.Emit(OpCodes.Ret);
-        }
-
         /// <summary>
         /// Loads DLL and function delegate of <paramref name="nativeFunction"/> if not yet loaded.
         /// To achieve thread safety calls to this method must be synchronized.
@@ -578,7 +597,7 @@ namespace DllManipulator
                     writer.Write("arguments: ");
                     if (arguments.Length == 0)
                     {
-                        writer.Write("no arguments");
+                        writer.WriteLine("no arguments");
                     }
                     else
                     {
@@ -686,7 +705,6 @@ namespace DllManipulator
         public string crashLogsDir;
         public bool crashLogsStackTrace;
         public bool mockAllNativeFunctions;
-        public bool mockCallsInAllTypes;
     }
 
     public enum DllLoadingMode
