@@ -2,6 +2,7 @@
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
+using System.Threading;
 
 namespace DllManipulator
 {
@@ -22,6 +23,9 @@ namespace DllManipulator
         private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
             "Ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks.\n\n" +
             "Only in Preloaded mode.");
+        private readonly GUIContent WAIT_FOR_THREADS_GUI_CONTENT = new GUIContent("Wait for threads",
+            "Whether to wait before unloading DLLs for all threads that use native functions. Not doing so may cause some weirdness at stopping game.\n\n" +
+            "Quite small overhead.");
         private readonly GUIContent CRASH_LOGS_GUI_CONTENT = new GUIContent("Crash logs",
             "Logs each native call to file. In case of crash or hang caused by native function, you can than see what function was that, along with arguments and, optionally, stack trace.\n\n" +
             "In multi-threaded scenario there will be one file for each thread and you'll have to guess the right one (call index will be a hint).\n\n" +
@@ -158,6 +162,19 @@ namespace DllManipulator
                 var time = DllManipulator.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
             }
+
+            var awaitedTheads = Interlocked.CompareExchange(ref DllManipulator.AwaitedThreads, 0, 0);
+            if(awaitedTheads != 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField($"Waiting for threads: {awaitedTheads}");
+                if(GUILayout.Button("Abort awaited threads"))
+                {
+                    DllManipulator.AbortAwaitedThreads();
+                }
+
+                EditorUtility.SetDirty(target); //Cause this editor to reprint next frame (or quite soon)
+            }
         }
 
         private void DrawOptions(DllManipulatorOptions options)
@@ -185,6 +202,16 @@ namespace DllManipulator
             }
             options.threadSafe = EditorGUILayout.Toggle(THREAD_SAFE_GUI_CONTENT, options.threadSafe);
             GUI.enabled = guiEnabledStack.Pop();
+
+            if(options.threadSafe)
+            {
+                var prevIndent = EditorGUI.indentLevel;
+
+                EditorGUI.indentLevel += 1;
+                options.waitForThreads = EditorGUILayout.Toggle(WAIT_FOR_THREADS_GUI_CONTENT, options.waitForThreads);
+
+                EditorGUI.indentLevel = prevIndent;
+            }
 
             options.crashLogs = EditorGUILayout.Toggle(CRASH_LOGS_GUI_CONTENT, options.crashLogs);
 

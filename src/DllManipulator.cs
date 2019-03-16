@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -9,6 +10,7 @@ using System.Threading;
 using System.IO;
 using UnityEngine;
 using DllManipulator.Internal;
+using System.Threading.Tasks;
 
 namespace DllManipulator
 {
@@ -36,6 +38,7 @@ namespace DllManipulator
             loadingMode = DllLoadingMode.Lazy,
             unixDlopenFlags = UnixDlopenFlags.Lazy,
             threadSafe = false,
+            waitForThreads = true,
             crashLogs = false,
             crashLogsDir = "{assets}/",
             crashLogsStackTrace = false,
@@ -43,6 +46,7 @@ namespace DllManipulator
         };
 
         public static TimeSpan? InitializationTime { get; private set; } = null;
+        public static int AwaitedThreads = 0; //Use with synchronization
         private static DllManipulatorOptions _options;
         private static DllManipulator _singletonInstance = null;
         private static int _unityMainThreadId;
@@ -56,6 +60,7 @@ namespace DllManipulator
         private static int _nativeFunctionsCount = 0;
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
+        private static readonly ConcurrentDictionary<Thread, int> _threadsCallingNatives = new ConcurrentDictionary<Thread, int>(); //Used as set, walkaround to the lack of concurrent set in .NET
 
 
         private void OnEnable()
@@ -80,14 +85,48 @@ namespace DllManipulator
             Initialize();
         }
 
-        private void OnApplicationQuit()
+        private async Task OnApplicationQuit()
         {
-            //FIXME: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
-            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function are just reloaded so we end up with loaded DLL after game exit.
+            Debug.Log("OnApplicationQuit() before join thread: " + Thread.CurrentThread.ManagedThreadId);
+
+            if (_options.waitForThreads)
+            {
+                var threadsToAwait = _threadsCallingNatives.Keys.Where(t => t.ManagedThreadId != _unityMainThreadId).ToList();
+                Interlocked.Exchange(ref AwaitedThreads, threadsToAwait.Count);
+
+                await Task.Factory.StartNew(() =>
+                {
+                    while (true)
+                    {
+                        int aliveThreads = 0;
+                        foreach (var t in threadsToAwait)
+                        {
+                            if(t.IsAlive)
+                            {
+                                aliveThreads++;
+                            }
+                        }
+
+                        Interlocked.Exchange(ref AwaitedThreads, aliveThreads);
+
+                        if (aliveThreads == 0)
+                        {
+                            return;
+                        }
+
+                        Thread.Sleep(100);
+                    }
+                }, TaskCreationOptions.LongRunning);
+            }
+
+            Debug.Log("OnApplicationQuit() after join thread: " + Thread.CurrentThread.ManagedThreadId);
 
             UnloadAll();
+            Debug.Log("OnApplicationQuit() after UnloadAll()");
             ForgetAllDlls();
+            Debug.Log("OnApplicationQuit() after ForgetAllDlls()");
             ClearCrashLogs();
+            Debug.Log("OnApplicationQuit() after ClearCrashLogs()");
         }
 
         private static void Initialize()
@@ -174,6 +213,25 @@ namespace DllManipulator
             finally
             {
                 _nativeFunctionLoadLock.ExitWriteLock();
+            }
+        }
+
+        public static void AbortAwaitedThreads()
+        {
+            var awaitingThreads = _threadsCallingNatives.Keys.Where(t => t.ManagedThreadId != _unityMainThreadId).ToList();
+            foreach (var t in awaitingThreads)
+            {
+                if (t.IsAlive)
+                {
+                    try
+                    {
+                        t.Abort();
+                    }
+                    catch (ThreadAbortException)
+                    {
+
+                    }
+                }
             }
         }
 
@@ -285,6 +343,16 @@ namespace DllManipulator
                 if (!returnsVoid)
                 {
                     il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
+                }
+
+                if(_options.waitForThreads)
+                {
+                    //Store current thread so at application quit event it can be waited for
+                    il.Emit(OpCodes.Ldsfld, ThreadsCallingNativesField.Value);
+                    il.Emit(OpCodes.Call, Thread_getCurrentThreadMethod.Value);
+                    il.Emit(OpCodes.Ldc_I4_0);
+                    il.Emit(OpCodes.Call, ConcurrentDictionaryThreadIntTryAddMethod.Value);
+                    il.Emit(OpCodes.Pop); //Not interested whether actually added element
                 }
 
                 il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
@@ -701,6 +769,7 @@ namespace DllManipulator
         public DllLoadingMode loadingMode;
         public UnixDlopenFlags unixDlopenFlags;
         public bool threadSafe;
+        public bool waitForThreads;
         public bool crashLogs;
         public string crashLogsDir;
         public bool crashLogsStackTrace;
