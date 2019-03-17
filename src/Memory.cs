@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace DllManipulator.Internal
 {
@@ -52,19 +51,6 @@ namespace DllManipulator.Internal
         ///
         internal static bool IsWindows => WindowsPlatformIDSet.Contains(Environment.OSVersion.Platform);
 
-        /// <summary>Virtual protect</summary>
-        /// <param name="lpAddress">The address</param>
-        /// <param name="dwSize">The size</param>
-        /// <param name="flNewProtect">The fl new protect</param>
-        /// <param name="lpflOldProtect">[out] The lpfl old protect</param>
-        /// <returns>Status</returns>
-        ///
-        // Safe to use windows reference since this will only ever be called on windows
-        //
-        [DisableMocking]
-        [DllImport("kernel32.dll")]
-        internal static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, Protection flNewProtect, out Protection lpflOldProtect);
-
         /// <summary>Unprotect a memory page</summary>
         /// <param name="memory">The memory address</param>
         ///
@@ -72,7 +58,7 @@ namespace DllManipulator.Internal
         {
             if (IsWindows)
             {
-                var success = VirtualProtect(new IntPtr(memory), new UIntPtr(1), Protection.PAGE_EXECUTE_READWRITE, out var _ignored);
+                var success = PInvokes.Windows_VirtualProtect(new IntPtr(memory), new UIntPtr(1), Protection.PAGE_EXECUTE_READWRITE, out var _ignored);
                 if (success == false)
                     throw new System.ComponentModel.Win32Exception();
             }

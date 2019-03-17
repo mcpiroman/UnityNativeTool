@@ -3,16 +3,16 @@
 namespace DllManipulator
 {
     /// <summary>
-    /// Calls of all native functions declared inside types with this attributes may be mocked. This attribute is redundant if <see cref="DllManipulatorOptions.mockAllNativeFunctions"/> is true.
+    /// Member native functions in types with this attributes will be mocked. This attribute is redundant if "Mock all native functions" option is true.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
     public class MockNativeDeclarationsAttribute : Attribute
     {
 
     }
 
     /// <summary>
-    /// Calls of native functions with this attribute may be mocked. This attribute is redundant if <see cref="DllManipulatorOptions.mockAllNativeFunctions"/> is true.
+    /// Native functions with this attribute will be mocked. This attribute is redundant if "Mock all native functions" option is true.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
     public class MockNativeDeclarationAttribute : Attribute
@@ -21,9 +21,10 @@ namespace DllManipulator
     }
 
     /// <summary>
-    /// Calls of native functions with this attribute won't be mocked.
+    /// Applied to native function, prevents it from being mocked.
+    /// Applied to class, prevents all member native functions from being mocked.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
     public class DisableMockingAttribute : Attribute
     {
 

@@ -20,9 +20,6 @@ namespace DllManipulator
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
         private const string CRASH_FILE_NAME_PREFIX = "unityNativeCrash_";
         public static readonly Type[] SUPPORTED_PARAMATER_ATTRIBUTES = { typeof(MarshalAsAttribute), typeof(InAttribute), typeof(OutAttribute) };
-        private static readonly Type[] DELEGATE_CTOR_PARAMETERS = { typeof(object), typeof(IntPtr) };
-        private static readonly Type[] UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS = { typeof(CallingConvention) };
-        private static readonly Type[] MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS = { typeof(UnmanagedType) };
 
         public DllManipulatorOptions Options = new DllManipulatorOptions()
         {
@@ -39,7 +36,7 @@ namespace DllManipulator
             crashLogs = false,
             crashLogsDir = "{assets}/",
             crashLogsStackTrace = false,
-            mockAllNativeFunctions = false,
+            mockAllNativeFunctions = true,
         };
 
         public static TimeSpan? InitializationTime { get; private set; } = null;
@@ -83,7 +80,8 @@ namespace DllManipulator
         private void OnApplicationQuit()
         {
             //FIXME: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
-            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function are just reloaded so we end up with loaded DLL after game exit.
+            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
+            //Thankfully thread safety with Lazy mode is not implemented yet.
 
             UnloadAll();
             ForgetAllDlls();
@@ -101,7 +99,17 @@ namespace DllManipulator
                 {
                     if (method.IsDefined(typeof(DllImportAttribute)))
                     {
-                        if (!method.IsDefined(typeof(DisableMockingAttribute)) && _options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
+                        if(method.IsDefined(typeof(DisableMockingAttribute)))
+                        {
+                            continue;
+                        }
+
+                        if(method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
+                        {
+                            continue;
+                        }
+
+                        if (_options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
                         {
                             var methodMock = GetNativeFunctionMock(method);
                             Memory.MarkForNoInlining(method);
