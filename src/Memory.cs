@@ -30,7 +30,7 @@ namespace UnityNativeTool
         {
             if (IsWindows)
             {
-                var success = PInvokes.Windows_VirtualProtect(new IntPtr(memory), new UIntPtr(1), Protection.PAGE_EXECUTE_READWRITE, out var _ignored);
+                var success = PInvokes_Windows.VirtualProtect(new IntPtr(memory), new UIntPtr(1), PInvokes_Windows.Protection.PAGE_EXECUTE_READWRITE, out var _ignored);
                 if (success == false)
                     throw new System.ComponentModel.Win32Exception();
             }

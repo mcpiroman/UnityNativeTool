@@ -173,7 +173,7 @@ namespace UnityNativeTool
             }
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
 
-#if true || UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
+#if UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
             options.unixDlopenFlags = (Unix_DlopenFlags)EditorGUILayout.EnumPopup(UNIX_DLOPEN_FLAGS_GUI_CONTENT, options.unixDlopenFlags);
 #endif
 
