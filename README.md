@@ -4,29 +4,13 @@ Tool created mainly to solve old problem with unloading native plugins without r
 ## Features
 - Automaticly unloads native plugins after stopping game and loads them when needed
 - You can unload/reload them manually in playing or paused state
-- Works on Windows, Linux and Mac
 - No code change is required (use usual `[DllImport]`)
+- Works on Windows, Linux and Mac
 - Ability to log native calls to file in order to diagnose crashes caused by them
 
 ## Requirements
 - Api Compatibility Level &ge; .NET 4.x
-- [Unsafe](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/unsafe-code-pointers/index) code
-
-## Limitations
-- Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported
-- Fields `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` of `[MarshalAs]` attribute are not supported (due to Mono bug https://github.com/mono/mono/issues/12747)
-- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them)
-- Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about)
-
-## Preformance
-Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Target function is simple addition of 2 floats and was called 1000000 times.
-
-| Test case | Avarage time |
-| --- |:---:|
-| Without this tool | ~70ms |
-| Lazy mode | ~135ms |
-| Preload mode | ~105ms |
-| With thread safety | ~300ms |
+- x86 or x86_64 processor
 
 ## Instalation
 1. Download and add unity package from [releases](https://github.com/MCpiroman/UnityNativeTool/releases).
@@ -43,7 +27,7 @@ Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Targe
 5. One game object in the scene needs to have `DllManipulator` script on it. By default this script has `DontDestroayOnLoad(gameObject)` call, and deletes itself when dupliacate is found. 
 
 ## Usage
-- Your plugin files must be at path specified in options. By default you just add __ at the beginning of file name.
+- Your plugin files must be at path specified in options. By default you just add __ at the beginning of your dll file in Assets/Plugins folder.
 - By default, all native functions in scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity or Mono). You can change that in options and use attributes to select which functions you want to be mocked.
 - You can simply disactivate `DllManipulator` object if you don't want this tool to run.
 - Although presumably runs in builded game, it's intended to be used in editor.
@@ -64,9 +48,31 @@ Options are accessed via `DllManipulator` script editor or window.
   * `[MockNativeDeclaration]` - Mocks native function with this attribute.
   * `[DisableMocking]` - Disables mocking of native function with this attribute. Can be used on whole classes.
 
+## Limitations
+- Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported
+- Fields `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` of `[MarshalAs]` attribute are not supported (due to Mono bug https://github.com/mono/mono/issues/12747)
+- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them)
+- Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about)
+
+## Preformance
+Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Target function is simple addition of 2 floats and was called 1000000 times.
+
+| Test case | Avarage time |
+| --- |:---:|
+| Without this tool | ~70ms |
+| Lazy mode | ~135ms |
+| Preload mode | ~105ms |
+| With thread safety | ~300ms |
+
 ## Planned/possible features
 - Debugging native functions
 - Improved thread safety and interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
-- Native calls inlining
-- Better names
+- Diffrent mocking methods (IL/metadata/assembly manipulation)
+- Unit tests
+
+## References
+Some of the sources I based my code on (as you often say, this wouldn't be possible without):
+- https://github.com/pardeike/Harmony
+- https://stackoverflow.com/a/9507589/7249108
+- http://runningdimensions.com/blog/?p=5
