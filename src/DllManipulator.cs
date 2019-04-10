@@ -8,12 +8,11 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.IO;
 using UnityEngine;
-using DllManipulator.Internal;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
     //Note "DLL" used in this code refers to Dynamically Loaded Library, and not to the .dll file extension on Windows.
-    public partial class DllManipulator : MonoBehaviour
+    public partial class DllManipulator
     {
         public const string DLL_PATH_PATTERN_DLL_NAME_MACRO = "{name}";
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
@@ -21,27 +20,7 @@ namespace DllManipulator
         private const string CRASH_FILE_NAME_PREFIX = "unityNativeCrash_";
         public static readonly Type[] SUPPORTED_PARAMATER_ATTRIBUTES = { typeof(MarshalAsAttribute), typeof(InAttribute), typeof(OutAttribute) };
 
-        public DllManipulatorOptions Options = new DllManipulatorOptions()
-        {
-#if UNITY_STANDALONE_WIN
-            dllPathPattern = "{assets}/Plugins/__{name}.dll",
-#elif UNITY_STANDALONE_LINUX
-            dllPathPattern = "{assets}/Plugins/__{name}.so",
-#elif UNITY_STANDALONE_OSX
-            dllPathPattern = "{assets}/Plugins/__{name}.dylib",
-#endif
-            loadingMode = DllLoadingMode.Lazy,
-            unixDlopenFlags = UnixDlopenFlags.Lazy,
-            threadSafe = false,
-            crashLogs = false,
-            crashLogsDir = "{assets}/",
-            crashLogsStackTrace = false,
-            mockAllNativeFunctions = true,
-        };
-
-        public static TimeSpan? InitializationTime { get; private set; } = null;
-        private static DllManipulatorOptions _options;
-        private static DllManipulator _singletonInstance = null;
+        public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
         private static string _assetsPath;
         private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
@@ -55,80 +34,15 @@ namespace DllManipulator
         private static int _lastNativeCallIndex = 0; //Use with synchronization
 
 
-        private void OnEnable()
+        public static void SetUnityContext(int unityMainThreadId, string assetsPath)
         {
-            if (_singletonInstance != null)
-            {
-                if (_singletonInstance != this)
-                {
-                    Destroy(gameObject);
-                }
-
-                return;
-            }
-            _singletonInstance = this;
-
-            _unityMainThreadId = Thread.CurrentThread.ManagedThreadId;
-            _assetsPath = Application.dataPath;
-
-            DontDestroyOnLoad(gameObject);
-
-            _options = Options;
-            Initialize();
+            DllManipulator._unityMainThreadId = unityMainThreadId;
+            DllManipulator._assetsPath = assetsPath;
         }
 
-        private void OnApplicationQuit()
-        {
-            //FIXME: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
-            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
-            //Thankfully thread safety with Lazy mode is not implemented yet.
-
-            UnloadAll();
-            ForgetAllDlls();
-            ClearCrashLogs();
-        }
-
-        private static void Initialize()
-        {
-            var timer = System.Diagnostics.Stopwatch.StartNew();
-            var allTypes = Assembly.GetExecutingAssembly().GetTypes();
-
-            foreach (var type in allTypes)
-            {
-                foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
-                {
-                    if (method.IsDefined(typeof(DllImportAttribute)))
-                    {
-                        if(method.IsDefined(typeof(DisableMockingAttribute)))
-                        {
-                            continue;
-                        }
-
-                        if(method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
-                        {
-                            continue;
-                        }
-
-                        if (_options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
-                        {
-                            var methodMock = GetNativeFunctionMock(method);
-                            Memory.MarkForNoInlining(method);
-                            PrepareDynamicMethod(methodMock);
-                            Memory.DetourMethod(method, methodMock);
-                        }
-                    }
-                }
-            }
-
-            if (_options.loadingMode == DllLoadingMode.Preload)
-            {
-                LoadAll();
-            }
-
-            timer.Stop();
-            InitializationTime = timer.Elapsed;
-        }
-
+        /// <summary>
+        /// Loads all DLLs and functions for mocked methods
+        /// </summary>
         public static void LoadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
@@ -151,6 +65,9 @@ namespace DllManipulator
             }
         }
 
+        /// <summary>
+        /// Unloads all DLLs and functions currently loaded
+        /// </summary>
         public static void UnloadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
@@ -185,18 +102,18 @@ namespace DllManipulator
             }
         }
 
-        private static void ForgetAllDlls()
+        public static void ForgetAllDlls()
         {
             _dlls.Clear();
             _nativeFunctions = null;
             _nativeFunctionsCount = 0;
         }
 
-        private static void ClearCrashLogs()
+        public static void ClearCrashLogs()
         {
-            if (_options.crashLogs)
+            if (Options.crashLogs)
             {
-                var dir = ApplyDirectoryPathMacros(_options.crashLogsDir);
+                var dir = ApplyDirectoryPathMacros(Options.crashLogsDir);
                 foreach (var filePath in Directory.GetFiles(dir))
                 {
                     if (Path.GetFileName(filePath).StartsWith(CRASH_FILE_NAME_PREFIX))
@@ -205,13 +122,6 @@ namespace DllManipulator
                     }
                 }
             }
-        }
-
-        private static string ApplyDirectoryPathMacros(string path)
-        {
-            return path
-                .Replace(DLL_PATH_PATTERN_ASSETS_MACRO, _assetsPath)
-                .Replace(DLL_PATH_PATTERN_PROJECT_MACRO, _assetsPath + "/../");
         }
 
         /// <summary>
@@ -231,10 +141,53 @@ namespace DllManipulator
             return dllInfos;
         }
 
+        public static IEnumerable<MethodInfo> FindNativeFunctionsToMock(Assembly assembly)
+        {
+            var allTypes = assembly.GetTypes();
+            foreach (var type in allTypes)
+            {
+                foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (method.IsDefined(typeof(DllImportAttribute)))
+                    {
+                        if (method.IsDefined(typeof(DisableMockingAttribute)))
+                        {
+                            continue;
+                        }
+
+                        if (method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
+                        {
+                            continue;
+                        }
+
+                        if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
+                        {
+                            yield return method;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string ApplyDirectoryPathMacros(string path)
+        {
+            return path
+                .Replace(DLL_PATH_PATTERN_ASSETS_MACRO, _assetsPath)
+                .Replace(DLL_PATH_PATTERN_PROJECT_MACRO, _assetsPath + "/../");
+        }
+
+        public static void MockNativeFunction(MethodInfo function)
+        {
+            var methodMock = GetNativeFunctionMockMethod(function);
+            Memory.MarkForNoInlining(function);
+            PrepareDynamicMethod(methodMock);
+            Memory.DetourMethod(function, methodMock);
+        }
+
         /// <summary>
         /// Creates and registers new DynamicMethod that mocks <paramref name="nativeMethod"/> and itself calls dynamically loaded function from DLL.
         /// </summary>
-        private static DynamicMethod GetNativeFunctionMock(MethodInfo nativeMethod)
+        private static DynamicMethod GetNativeFunctionMockMethod(MethodInfo nativeMethod)
         {
             if (!_nativeFunctionMocks.TryGetValue(nativeMethod, out var mockedDynamicMethod))
             {
@@ -249,7 +202,7 @@ namespace DllManipulator
                 }
                 else
                 {
-                    dllPath = ApplyDirectoryPathMacros(_options.dllPathPattern).Replace(DLL_PATH_PATTERN_DLL_NAME_MACRO, dllName);
+                    dllPath = ApplyDirectoryPathMacros(Options.dllPathPattern).Replace(DLL_PATH_PATTERN_DLL_NAME_MACRO, dllName);
                     dll = new NativeDll(dllName, dllPath);
                     _dlls.Add(dllName, dll);
                 }
@@ -288,7 +241,7 @@ namespace DllManipulator
         {
             var returnsVoid = delegateInvokeMethod.ReturnType == typeof(void);
 
-            if (_options.threadSafe)
+            if (Options.threadSafe)
             {
                 if (!returnsVoid)
                 {
@@ -303,9 +256,9 @@ namespace DllManipulator
             il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value);
             il.EmitFastI4Load(nativeFunctionIndex);
             il.Emit(OpCodes.Ldelem_Ref);
-            if (_options.loadingMode == DllLoadingMode.Lazy)
+            if (Options.loadingMode == DllLoadingMode.Lazy)
             {
-                if (_options.threadSafe)
+                if (Options.threadSafe)
                 {
                     throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
                 }
@@ -313,7 +266,7 @@ namespace DllManipulator
                 il.Emit(OpCodes.Dup);
                 il.Emit(OpCodes.Call, LoadTargetFunctionMethod.Value);
             }
-            if (_options.crashLogs)
+            if (Options.crashLogs)
             {
                 il.EmitFastI4Load(parameterCount); //Generate array of arguments
                 il.Emit(OpCodes.Newarr, typeof(object));
@@ -343,7 +296,7 @@ namespace DllManipulator
             }
             il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
 
-            if (_options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
+            if (Options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
             {
                 var retLabel = il.DefineLabel();
                 if (!returnsVoid)
@@ -588,7 +541,7 @@ namespace DllManipulator
         private static void WriteNativeCrashLog(NativeFunction nativeFunction, object[] arguments)
         {
             var threadId = Thread.CurrentThread.ManagedThreadId;
-            var filePath = Path.Combine(ApplyDirectoryPathMacros(_options.crashLogsDir), $"{CRASH_FILE_NAME_PREFIX}tid{threadId}.log");
+            var filePath = Path.Combine(ApplyDirectoryPathMacros(Options.crashLogsDir), $"{CRASH_FILE_NAME_PREFIX}tid{threadId}.log");
             using (var file = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.Read)) //Truncates file if exists
             {
                 using(var writer = new StreamWriter(file))
@@ -658,7 +611,7 @@ namespace DllManipulator
                     writer.Write("call index: ");
                     writer.WriteLine(nativeCallIndex);
 
-                    if (_options.crashLogsStackTrace)
+                    if (Options.crashLogsStackTrace)
                     {
                         var stackTrace = new System.Diagnostics.StackTrace(1); //Skip this frame
                         writer.WriteLine("stack trace:");
@@ -673,9 +626,9 @@ namespace DllManipulator
 #if UNITY_STANDALONE_WIN
             return PInvokes.Windows_LoadLibrary(filepath);
 #elif UNITY_STANDALONE_LINUX
-            return PInvokes.Linux_dlopen(filepath, (int)_options.unixDlopenFlags);
+            return PInvokes.Linux_dlopen(filepath, (int)Options.unixDlopenFlags);
 #elif UNITY_STANDALONE_OSX
-            return PInvokes.Osx_dlopen(filepath, (int)_options.unixDlopenFlags);
+            return PInvokes.Osx_dlopen(filepath, (int)Options.unixDlopenFlags);
 #endif
         }
 
@@ -707,7 +660,7 @@ namespace DllManipulator
     {
         public string dllPathPattern;
         public DllLoadingMode loadingMode;
-        public UnixDlopenFlags unixDlopenFlags;
+        public Unix_DlopenFlags unixDlopenFlags;
         public bool threadSafe;
         public bool crashLogs;
         public string crashLogsDir;
@@ -719,13 +672,5 @@ namespace DllManipulator
     {
         Lazy,
         Preload
-    }
-
-    public enum UnixDlopenFlags : int
-    {
-        Lazy = 0x00001,
-        Now = 0x00002,
-        Lazy_Global = 0x00100 | Lazy,
-        Now_Global = 0x00100 | Now
     }
 }

@@ -3,9 +3,9 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
-    [CustomEditor(typeof(DllManipulator))]
+    [CustomEditor(typeof(DllManipulatorScript))]
     public class DllManipulatorEditor : Editor
     {
         private readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
@@ -15,8 +15,8 @@ namespace DllManipulator
             $"{DllManipulator.DLL_PATH_PATTERN_PROJECT_MACRO} - project folder i.e. one above Assets.");
         private readonly GUIContent DLL_LOADING_MODE_GUI_CONTENT = new GUIContent("DLL loading mode", 
             "Specifies how DLLs and functions will be loaded.\n\n" +
-            "Lazy - All DLLs and functions are loaded as they're first called. This allows them to be easily unloaded and loaded within game execution.\n\n" +
-            "Preloaded - Slight performance benefit over Lazy mode. All declared DLLs and functions are loaded at startup (OnEnable()). Mid-execution it's not safe to unload them unless game is paused.");
+            "Lazy - All DLLs and functions are loaded each time they are called, if not loaded yet. This allows them to be easily unloaded and loaded within game execution.\n\n" +
+            "Preloaded - Slight performance benefit over Lazy mode. All declared DLLs and functions are loaded at startup (OnEnable()) and not reloaded later. Mid-execution it's not safe to unload them unless game is paused.");
         private readonly GUIContent UNIX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
             "Flags used in dlopen() P/Invoke on Linux and OSX systems. Has minor meaning unless library is large.");
         private readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
@@ -49,7 +49,7 @@ namespace DllManipulator
 
         public override void OnInspectorGUI()
         {
-            var t = (DllManipulator)this.target;
+            var t = (DllManipulatorScript)this.target;
 
             DrawOptions(t.Options);
             EditorGUILayout.Space();
@@ -151,11 +151,11 @@ namespace DllManipulator
                 GUILayout.EndHorizontal();
             }
 
-            if(EditorApplication.isPlaying && DllManipulator.InitializationTime != null)
+            if(EditorApplication.isPlaying && t.InitializationTime != null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
-                var time = DllManipulator.InitializationTime.Value;
+                var time = t.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
             }
         }
@@ -173,8 +173,8 @@ namespace DllManipulator
             }
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
 
-#if UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
-            options.unixDlopenFlags = (UnixDlopenFlags)EditorGUILayout.EnumPopup(UNIX_DLOPEN_FLAGS_GUI_CONTENT, options.unixDlopenFlags);
+#if true || UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
+            options.unixDlopenFlags = (Unix_DlopenFlags)EditorGUILayout.EnumPopup(UNIX_DLOPEN_FLAGS_GUI_CONTENT, options.unixDlopenFlags);
 #endif
 
             guiEnabledStack.Push(GUI.enabled);

@@ -1,6 +1,6 @@
 ﻿using System.Reflection.Emit;
 
-namespace DllManipulator.Internal
+namespace UnityNativeTool
 {
     internal static class IlGeneratorExtensions
     {

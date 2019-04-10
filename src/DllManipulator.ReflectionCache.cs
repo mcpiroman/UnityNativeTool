@@ -2,9 +2,8 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
-using DllManipulator.Internal;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
     public partial class DllManipulator
     {

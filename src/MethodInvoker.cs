@@ -6,7 +6,7 @@ using System;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace DllManipulator.Internal
+namespace UnityNativeTool
 {
     // Based on https://www.codeproject.com/Articles/14593/A-General-Fast-Method-Invoker
 
@@ -64,11 +64,11 @@ namespace DllManipulator.Internal
                 {
                     // used later when storing back the reference to the new box in the array.
                     il.Emit(OpCodes.Ldarg_1);
-                    EmitFastInt(il, i);
+                    il.EmitFastI4Load(i);
                 }
 
                 il.Emit(OpCodes.Ldarg_1);
-                EmitFastInt(il, i);
+                il.EmitFastI4Load(i);
 
                 if (argIsByRef && !argIsValueType)
                 {
@@ -151,48 +151,6 @@ namespace DllManipulator.Internal
         {
             if (type.IsValueType)
                 il.Emit(OpCodes.Box, type);
-        }
-
-        static void EmitFastInt(ILGenerator il, int value)
-        {
-            switch (value)
-            {
-                case -1:
-                    il.Emit(OpCodes.Ldc_I4_M1);
-                    return;
-                case 0:
-                    il.Emit(OpCodes.Ldc_I4_0);
-                    return;
-                case 1:
-                    il.Emit(OpCodes.Ldc_I4_1);
-                    return;
-                case 2:
-                    il.Emit(OpCodes.Ldc_I4_2);
-                    return;
-                case 3:
-                    il.Emit(OpCodes.Ldc_I4_3);
-                    return;
-                case 4:
-                    il.Emit(OpCodes.Ldc_I4_4);
-                    return;
-                case 5:
-                    il.Emit(OpCodes.Ldc_I4_5);
-                    return;
-                case 6:
-                    il.Emit(OpCodes.Ldc_I4_6);
-                    return;
-                case 7:
-                    il.Emit(OpCodes.Ldc_I4_7);
-                    return;
-                case 8:
-                    il.Emit(OpCodes.Ldc_I4_8);
-                    return;
-            }
-
-            if (value > -129 && value < 128)
-                il.Emit(OpCodes.Ldc_I4_S, (sbyte)value);
-            else
-                il.Emit(OpCodes.Ldc_I4, value);
         }
     }
 }

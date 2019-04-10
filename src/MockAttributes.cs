@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
     /// <summary>
     /// Member native functions in types with this attributes will be mocked. This attribute is redundant if "Mock all native functions" option is true.

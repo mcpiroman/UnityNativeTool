@@ -1,2 +1,4 @@
 *.meta
 src/LICENSE.txt
+*.sln
+.vs

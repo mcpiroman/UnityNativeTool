@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
     public class NativeDllException : Exception
     {

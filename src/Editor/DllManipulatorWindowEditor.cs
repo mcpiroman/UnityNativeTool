@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEditor;
 
-namespace DllManipulator
+namespace UnityNativeTool
 {
     public class DllManipulatorWindowEditor : EditorWindow
     {
@@ -15,10 +15,10 @@ namespace DllManipulator
 
         void OnGUI()
         {
-            var dllManipulator = FindObjectOfType<DllManipulator>();
+            var dllManipulator = FindObjectOfType<DllManipulatorScript>();
             if (dllManipulator == null)
             {
-                dllManipulator = Resources.FindObjectsOfTypeAll<DllManipulator>()
+                dllManipulator = Resources.FindObjectsOfTypeAll<DllManipulatorScript>()
                     .FirstOrDefault(d => !EditorUtility.IsPersistent(d) && d.gameObject.scene.IsValid());
             }
 
@@ -30,7 +30,7 @@ namespace DllManipulator
             else
             {
                 EditorGUILayout.Space();
-                EditorGUILayout.LabelField($"There is no {nameof(DllManipulator)} script in the scene.");
+                EditorGUILayout.LabelField($"There is no {nameof(DllManipulatorScript)} script in the scene.");
             }
         }
     }

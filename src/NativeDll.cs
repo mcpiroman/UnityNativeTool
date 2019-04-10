@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace DllManipulator.Internal
+namespace UnityNativeTool
 {
     internal class NativeDll
     {
@@ -18,10 +18,7 @@ namespace DllManipulator.Internal
             this.path = path;
         }
     }
-}
 
-namespace DllManipulator
-{
     public class NativeDllInfo
     {
         public string name;
