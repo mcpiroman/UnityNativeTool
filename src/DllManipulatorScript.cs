@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using System.Threading;
+using System.Linq;
 using UnityEngine;
 using UnityNativeTool.Internal;
 
@@ -19,6 +20,7 @@ namespace UnityNativeTool
 #elif UNITY_STANDALONE_OSX
             dllPathPattern = "{assets}/Plugins/__{name}.dylib",
 #endif
+            assemblyPaths = new string[0],
             loadingMode = DllLoadingMode.Lazy,
             unixDlopenFlags = Unix_DlopenFlags.Lazy,
             threadSafe = false,
@@ -42,13 +44,32 @@ namespace UnityNativeTool
             _singletonInstance = this;
             DontDestroyOnLoad(gameObject);
 
+            var timer = System.Diagnostics.Stopwatch.StartNew();
             DllManipulator.SetUnityContext(Thread.CurrentThread.ManagedThreadId, Application.dataPath);
             DllManipulator.Options = Options;
 
-            var timer = System.Diagnostics.Stopwatch.StartNew();
-            foreach (var function in DllManipulator.FindNativeFunctionsToMock(Assembly.GetExecutingAssembly()))
+            Assembly[] assemblies;
+            if (Options.assemblyPaths.Length == 0)
             {
-                DllManipulator.MockNativeFunction(function);
+                assemblies = new[] { Assembly.GetExecutingAssembly() };
+            }
+            else
+            {
+                var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == PathUtils.NormallizeSystemAssemblyPath(a.Location))).ToArray();
+                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => PathUtils.NormallizeSystemAssemblyPath(a.Location)));
+                foreach(var assemblyPath in missingAssemblies)
+                {
+                    Debug.LogError($"Could not find assembly at path {assemblyPath}");
+                }
+            }
+
+            foreach (var assembly in assemblies)
+            {
+                foreach (var function in DllManipulator.FindNativeFunctionsToMock(assembly))
+                {
+                    DllManipulator.MockNativeFunction(function);
+                }
             }
 
             if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload)
@@ -70,6 +91,5 @@ namespace UnityNativeTool
             DllManipulator.ForgetAllDlls();
             DllManipulator.ClearCrashLogs();
         }
-
     }
 }

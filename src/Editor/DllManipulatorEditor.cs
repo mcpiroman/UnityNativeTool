@@ -2,12 +2,21 @@
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
+using UnityEditor.Compilation;
+using System.IO;
 
 namespace UnityNativeTool.Internal
 {
     [CustomEditor(typeof(DllManipulatorScript))]
     public class DllManipulatorEditor : Editor
     {
+        private readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
+            "If true, all found native functions will be mocked.\n\n" +
+            $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
+        private readonly GUIContent TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT = new GUIContent("Only executing assembly",
+            "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
+        private readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
+            "Choose from which assemblies to mock native functions");
         private readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
             "Available macros:\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_DLL_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
@@ -32,14 +41,11 @@ namespace UnityNativeTool.Internal
         private readonly GUIContent CRASH_LOGS_STACK_TRACE_GUI_CONTENT = new GUIContent("Stack trace",
             "Whether to include stack trace in crash log.\n\n" +
             "Overhead is about 4 times higher.");
-        private readonly GUIContent MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("Mock all native functions", 
-            "If true, all native functions in current assembly will be mocked.\n\n" +
-            $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
         private readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
             "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
 
         private bool _showLoadedLibraries = true;
-        
+        private bool _showTargetAssemblies = true;
 
         public DllManipulatorEditor()
         {
@@ -108,39 +114,7 @@ namespace UnityNativeTool.Internal
                     }
                 }
 
-                _showLoadedLibraries = EditorGUILayout.Foldout(_showLoadedLibraries, "Mocked DLLs");
-                if (_showLoadedLibraries)
-                {
-                    var prevIndent = EditorGUI.indentLevel;
-                    EditorGUI.indentLevel += 1;
-                    bool isFirstDll = true;
-                    foreach (var dll in usedDlls)
-                    {
-                        if (!isFirstDll)
-                        {
-                            EditorGUILayout.Space();
-                        }
-
-                        var stateAttributes = new List<string>
-                        {
-                            dll.isLoaded ? "LOADED" : "NOT LOADED"
-                        };
-                        if (dll.loadingError)
-                        {
-                            stateAttributes.Add("LOAD ERROR");
-                        }
-                        if(dll.symbolError)
-                        {
-                            stateAttributes.Add("SYMBOL ERRROR");
-                        }
-                        var state = string.Join(" | ", stateAttributes);
-
-                        EditorGUILayout.LabelField($"[{state}] {dll.name}");
-                        EditorGUILayout.LabelField(dll.path);
-                        isFirstDll = false;
-                    }
-                    EditorGUI.indentLevel = prevIndent;
-                }
+                DrawUsedDlls(usedDlls);
             }
             else if(EditorApplication.isPlaying)
             {
@@ -160,17 +134,117 @@ namespace UnityNativeTool.Internal
             }
         }
 
+        private void DrawUsedDlls(IList<NativeDllInfo> usedDlls)
+        {
+            _showLoadedLibraries = EditorGUILayout.Foldout(_showLoadedLibraries, "Mocked DLLs");
+            if (_showLoadedLibraries)
+            {
+                var prevIndent = EditorGUI.indentLevel;
+                EditorGUI.indentLevel += 1;
+                bool isFirstDll = true;
+                foreach (var dll in usedDlls)
+                {
+                    if (!isFirstDll)
+                    {
+                        EditorGUILayout.Space();
+                    }
+
+                    var stateAttributes = new List<string>
+                        {
+                            dll.isLoaded ? "LOADED" : "NOT LOADED"
+                        };
+                    if (dll.loadingError)
+                    {
+                        stateAttributes.Add("LOAD ERROR");
+                    }
+                    if (dll.symbolError)
+                    {
+                        stateAttributes.Add("SYMBOL ERRROR");
+                    }
+                    var state = string.Join(" | ", stateAttributes);
+
+                    EditorGUILayout.LabelField($"[{state}] {dll.name}");
+                    EditorGUILayout.LabelField(dll.path);
+                    isFirstDll = false;
+                }
+                EditorGUI.indentLevel = prevIndent;
+            }
+        }
+
         private void DrawOptions(DllManipulatorOptions options)
         {
             var guiEnabledStack = new Stack<bool>();
-
-            options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
 
             guiEnabledStack.Push(GUI.enabled);
             if (EditorApplication.isPlaying)
             {
                 GUI.enabled = false;
             }
+            options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
+
+            if (EditorGUILayout.Toggle(TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT, options.assemblyPaths.Length == 0))
+            {
+                options.assemblyPaths = new string[0];
+            }
+            else
+            {
+                var prevIndent1 = EditorGUI.indentLevel;
+                EditorGUI.indentLevel++;
+
+                var allAssemblies = CompilationPipeline.GetAssemblies();
+                if (options.assemblyPaths.Length == 0)
+                {
+                    options.assemblyPaths = new[] { GetFirstAssemblyPath(allAssemblies) };
+                }
+
+                _showTargetAssemblies = EditorGUILayout.Foldout(_showTargetAssemblies, TARGET_ASSEMBLIES_GUI_CONTENT);
+                if (_showTargetAssemblies)
+                {
+                    var prevIndent2 = EditorGUI.indentLevel;
+                    EditorGUI.indentLevel++;
+                    
+                    var assemblyPaths = new List<string>(options.assemblyPaths);
+                    assemblyPaths.RemoveAll(p => !allAssemblies.Any(a => PathUtils.DllPathsEquals(a.outputPath, p)));
+                    var selectedAssemblies = assemblyPaths.Select(p => allAssemblies.First(a => PathUtils.DllPathsEquals(a.outputPath, p))).ToArray();
+                    var notSelectedAssemblies = allAssemblies.Except(selectedAssemblies).ToArray();
+                    for (int i = 0; i <= assemblyPaths.Count; i++)
+                    {
+                        var values = new List<string> { "<None>" };
+                        bool isLast = i == assemblyPaths.Count;
+                        if (!isLast)
+                        {
+                            values.Add(selectedAssemblies[i].name);
+                        }
+                        values.AddRange(notSelectedAssemblies.Select(a => a.name));
+
+                        var selectedIndex = EditorGUILayout.Popup(isLast ? 0 : 1, values.ToArray());
+                        if (selectedIndex == 0 && !isLast)
+                        {
+                            assemblyPaths[i] = null;
+                        }
+                        else if (selectedIndex > 0 && (selectedIndex > 1 || isLast))
+                        {
+                            var path = PathUtils.NormallizeUnityAssemblyPath(notSelectedAssemblies[selectedIndex - (isLast ? 1 : 2)].outputPath);
+                            if (isLast)
+                            {
+                                assemblyPaths.Add(path);
+                            }
+                            else
+                            {
+                                assemblyPaths[i] = path;
+                            }
+                        }
+                    }
+                    options.assemblyPaths = assemblyPaths.Where(p => p != null).ToArray();
+
+                    EditorGUI.indentLevel = prevIndent2;
+                }
+
+                EditorGUI.indentLevel = prevIndent1;
+            }
+
+            options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
+            
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
 
 #if UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
@@ -191,8 +265,8 @@ namespace UnityNativeTool.Internal
             if (options.crashLogs)
             {
                 var prevIndent = EditorGUI.indentLevel;
-
                 EditorGUI.indentLevel += 1;
+
                 options.crashLogsDir = EditorGUILayout.TextField(CRASH_LOGS_DIR_GUI_CONTENT, options.crashLogsDir);
 
                 options.crashLogsStackTrace = EditorGUILayout.Toggle(CRASH_LOGS_STACK_TRACE_GUI_CONTENT, options.crashLogsStackTrace);
@@ -200,9 +274,14 @@ namespace UnityNativeTool.Internal
                 EditorGUI.indentLevel = prevIndent;
             }
 
-            options.mockAllNativeFunctions = EditorGUILayout.Toggle(MOCK_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
-
             GUI.enabled = guiEnabledStack.Pop();
+        }
+
+        string GetFirstAssemblyPath(Assembly[] allAssemblies)
+        {
+            var path = allAssemblies.FirstOrDefault(a => PathUtils.DllPathsEquals(a.outputPath, typeof(DllManipulator).Assembly.Location))?.outputPath 
+                ?? allAssemblies.FirstOrDefault().outputPath;
+            return PathUtils.NormallizeUnityAssemblyPath(path);
         }
     }
 }

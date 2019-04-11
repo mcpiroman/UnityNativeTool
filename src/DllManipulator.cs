@@ -169,7 +169,7 @@ namespace UnityNativeTool.Internal
             }
         }
 
-        private static string ApplyDirectoryPathMacros(string path)
+        public static string ApplyDirectoryPathMacros(string path)
         {
             return path
                 .Replace(DLL_PATH_PATTERN_ASSETS_MACRO, _assetsPath)
@@ -659,6 +659,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorOptions
     {
         public string dllPathPattern;
+        public string[] assemblyPaths; //empty means only executing assembly
         public DllLoadingMode loadingMode;
         public Unix_DlopenFlags unixDlopenFlags;
         public bool threadSafe;
