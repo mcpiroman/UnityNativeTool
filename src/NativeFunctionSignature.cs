@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     internal class NativeFunctionSignature
     {

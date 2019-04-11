@@ -6,7 +6,7 @@ using System;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     // Based on https://www.codeproject.com/Articles/14593/A-General-Fast-Method-Invoker
 

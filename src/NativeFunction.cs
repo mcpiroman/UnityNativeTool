@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     internal struct NativeFunctionIdentity
     {

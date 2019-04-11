@@ -1,6 +1,6 @@
 ﻿using System.Reflection.Emit;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     internal static class IlGeneratorExtensions
     {

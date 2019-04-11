@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEditor;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     public class DllManipulatorWindowEditor : EditorWindow
     {

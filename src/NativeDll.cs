@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     internal class NativeDll
     {

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     [DisableMocking]
     internal static class PInvokes_Windows

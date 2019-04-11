@@ -8,7 +8,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     /// <summary>A low level memory helper</summary>
     internal static class Memory

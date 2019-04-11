@@ -9,7 +9,7 @@ using System.Threading;
 using System.IO;
 using UnityEngine;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     //Note "DLL" used in this code refers to Dynamically Loaded Library, and not to the .dll file extension on Windows.
     public partial class DllManipulator

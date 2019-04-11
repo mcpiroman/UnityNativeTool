@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Threading;
 using UnityEngine;
+using UnityNativeTool.Internal;
 
 namespace UnityNativeTool
 {

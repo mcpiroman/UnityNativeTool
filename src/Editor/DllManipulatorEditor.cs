@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 
-namespace UnityNativeTool
+namespace UnityNativeTool.Internal
 {
     [CustomEditor(typeof(DllManipulatorScript))]
     public class DllManipulatorEditor : Editor
