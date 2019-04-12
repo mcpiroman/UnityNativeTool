@@ -1,5 +1,5 @@
 # UnityNativeTool
-Tool created mainly to solve old problem with unloading native plugins without reopening Unity Editor.
+Tool created mainly to solve old problem with unloading native plugins without the need to reopen Unity Editor.
 
 ## Features
 - Automaticly unloads native plugins after stopping game and loads them when needed
@@ -24,8 +24,8 @@ Tool created mainly to solve old problem with unloading native plugins without r
 
 ## Usage
 - Your plugin files must be at path specified in options. By default you just add __ at the beginning of your dll file in Assets/Plugins folder.
-- By default, all native functions in scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity). You can change that in options and use attributes to select which functions you want to be mocked.
-- If something is not working, first check out available options (and read their description), [then report an issue](https://github.com/mcpiroman/UnityNativeTool/issues).
+- By default, all native functions in scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity). You can change that in options and use attributes to select which functions you want or don't want to be mocked. Attributes are in namespace `UnityNativeTool`.
+- If something is not working, first check out available options (and read their description), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues).
 - Options are accessible via `DllManipulatorScript` editor or window.
 - Although presumably runs in builded game, it's intended to be used in editor.
 
