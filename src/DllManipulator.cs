@@ -626,7 +626,7 @@ namespace UnityNativeTool.Internal
 #if UNITY_STANDALONE_WIN
             return PInvokes_Windows.LoadLibrary(filepath);
 #elif UNITY_STANDALONE_LINUX
-            return PInvokes.Linux_dlopen(filepath, (int)Options.unixDlopenFlags);
+            return PInvokes_Linux.dlopen(filepath, (int)Options.unixDlopenFlags);
 #elif UNITY_STANDALONE_OSX
             return PInvokes_Osx.dlopen(filepath, (int)Options.unixDlopenFlags);
 #endif
