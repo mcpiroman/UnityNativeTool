@@ -43,6 +43,10 @@ namespace UnityNativeTool.Internal
             "Overhead is about 4 times higher.");
         private readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
             "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
+        private readonly GUIContent UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
+            "Use only if you are sure no other thread will be call mocked natives.");
+        private readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
+            "Use only if you are sure no other thread will be call mocked natives.");
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
@@ -79,38 +83,46 @@ namespace UnityNativeTool.Internal
                         DllManipulator.LoadAll();
                     }
                 }
-                else if(EditorApplication.isPaused)
-                {
-                    if (GUILayout.Button("Unpause"))
-                    {
-                        EditorApplication.isPaused = false;
-                    }
-                }
 
                 if (usedDlls.Any(d => d.isLoaded))
                 {
                     if (EditorApplication.isPlaying && !EditorApplication.isPaused)
                     {
-                        if (GUILayout.Button("Unload all DLLs & Pause"))
+                        bool pauseAndUnloadAll;
+                        if(t.Options.threadSafe)
+                        {
+                            pauseAndUnloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT);
+                        }
+                        else
+                        {
+                            pauseAndUnloadAll = GUILayout.Button("Unload all DLLs & Pause");
+                        }
+
+                        if(pauseAndUnloadAll)
                         {
                             EditorApplication.isPaused = true;
                             DllManipulator.UnloadAll();
                         }
                     }
 
-                    if(EditorApplication.isPlaying && !EditorApplication.isPaused && t.Options.loadingMode == DllLoadingMode.Preload)
+
+                    bool unloadAll;
+                    if(EditorApplication.isPlaying && t.Options.threadSafe)
                     {
-                        if (GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT))
-                        {
-                            DllManipulator.UnloadAll();
-                        }
+                        unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT);
+                    }
+                    else if (EditorApplication.isPlaying && !EditorApplication.isPaused && t.Options.loadingMode == DllLoadingMode.Preload)
+                    {
+                        unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT);
                     }
                     else
                     {
-                        if (GUILayout.Button("Unload all DLLs"))
-                        {
-                            DllManipulator.UnloadAll();
-                        }
+                        unloadAll = GUILayout.Button("Unload all DLLs");
+                    }
+
+                    if(unloadAll)
+                    {
+                        DllManipulator.UnloadAll();
                     }
                 }
 
