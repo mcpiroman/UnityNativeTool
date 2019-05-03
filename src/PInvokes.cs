@@ -45,7 +45,13 @@ namespace UnityNativeTool.Internal
         public static extern IntPtr GetProcAddress(IntPtr hModule, string procedureName);
 
         [DllImport("kernel32")]
+        public static extern IntPtr GetCurrentProcess();
+
+        [DllImport("kernel32")]
         internal static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, Protection flNewProtect, out Protection lpflOldProtect);
+
+        [DllImport("kernel32")]
+        internal static extern bool FlushInstructionCache(IntPtr hProcess, IntPtr lpBaseAddress, UIntPtr dwSize);
     }
 
     [DisableMocking]
