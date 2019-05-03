@@ -23,15 +23,27 @@ namespace UnityNativeTool.Internal
         ///
         internal static bool IsWindows => WindowsPlatformIDSet.Contains(Environment.OSVersion.Platform);
 
-        /// <summary>Unprotect a memory page</summary>
-        /// <param name="memory">The memory address</param>
+        /// <summary>Unprotect memory pages</summary>
+        /// <param name="memory">The starting memory address</param>
+        /// <param name="size">The length of memory block</param>
         ///
-        internal static void UnprotectMemoryPage(long memory)
+        internal static void UnprotectMemory(long memory, ulong size)
         {
             if (IsWindows)
             {
-                var success = PInvokes_Windows.VirtualProtect(new IntPtr(memory), new UIntPtr(1), PInvokes_Windows.Protection.PAGE_EXECUTE_READWRITE, out var _ignored);
-                if (success == false)
+                var success = PInvokes_Windows.VirtualProtect(new IntPtr(memory), new UIntPtr(size), PInvokes_Windows.Protection.PAGE_EXECUTE_READWRITE, out var _);
+                if (!success)
+                    throw new System.ComponentModel.Win32Exception();
+            }
+        }
+
+        internal static void FlushCode(long memory, ulong size)
+        {
+            if (IsWindows)
+            {
+                var processHandle = PInvokes_Windows.GetCurrentProcess();
+                var success = PInvokes_Windows.FlushInstructionCache(processHandle, new IntPtr(memory), new UIntPtr(size));
+                if (!success)
                     throw new System.ComponentModel.Win32Exception();
             }
         }
@@ -67,15 +79,6 @@ namespace UnityNativeTool.Internal
             return WriteJump(originalCodeStart, patchCodeStart);
         }
 
-        /*
-		 * This is still a rough part in Harmony. So much information and no easy way
-		 * to determine when and what is valid. Especially with different environments
-		 * and .NET versions. More information might be found here:
-		 * 
-		 * https://stackoverflow.com/questions/38782934/how-to-replace-the-pointer-to-the-overridden-virtual-method-in-the-pointer-of/
-		 * https://stackoverflow.com/questions/39034018/how-to-replace-a-pointer-to-a-pointer-to-a-method-in-a-class-of-my-method-inheri
-		 */
-
         /// <summary>Writes a jump to memory</summary>
         /// <param name="memory">The memory address</param>
         /// <param name="destination">Jump destination</param>
@@ -83,26 +86,32 @@ namespace UnityNativeTool.Internal
         ///
         public static string WriteJump(long memory, long destination)
         {
-            UnprotectMemoryPage(memory);
+            UnprotectMemory(memory, IntPtr.Size == sizeof(long) ? 12u : 6u);
 
+            long writtenMemoryAddress;
             if (IntPtr.Size == sizeof(long))
             {
                 if (CompareBytes(memory, new byte[] { 0xe9 }))
                 {
                     var offset = ReadInt(memory + 1);
                     memory += 5 + offset;
+                    UnprotectMemory(memory, 12);
                 }
 
+                writtenMemoryAddress = memory;
                 memory = WriteBytes(memory, new byte[] { 0x48, 0xB8 });
                 memory = WriteLong(memory, destination);
                 memory = WriteBytes(memory, new byte[] { 0xFF, 0xE0 });
             }
             else
             {
+                writtenMemoryAddress = memory;
                 memory = WriteByte(memory, 0x68);
                 memory = WriteInt(memory, (int)destination);
                 memory = WriteByte(memory, 0xc3);
             }
+
+            FlushCode(writtenMemoryAddress, IntPtr.Size == sizeof(long) ? 12u : 6u);
             return null;
         }
 
