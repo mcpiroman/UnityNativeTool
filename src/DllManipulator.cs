@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace UnityNativeTool.Internal
@@ -23,6 +24,7 @@ namespace UnityNativeTool.Internal
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
         private static string _assetsPath;
+        private static readonly DllPathResolver _dllPathResolver = new DllPathResolver();
         private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
         private static ModuleBuilder _customDelegateTypesModule = null;
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
@@ -148,14 +150,28 @@ namespace UnityNativeTool.Internal
             {
                 foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
                 {
-                    if (method.IsDefined(typeof(DllImportAttribute)))
+                    var dllImportAttr = method.GetCustomAttribute<DllImportAttribute>();
+                    if (dllImportAttr != null)
                     {
+                        //var path = _dllPathResolver.ResolveDllPath(dllImportAttr.Value);
+
                         if (method.IsDefined(typeof(DisableMockingAttribute)))
                         {
                             continue;
                         }
 
                         if (method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
+                        {
+                            continue;
+                        }
+
+                        if (Options.ignoredDllNames.Any(np => Regex.IsMatch(dllImportAttr.Value, np, RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)))
+                        {
+                            continue;
+                        }
+
+                        var dllOriginalPath = _dllPathResolver.Resolve(dllImportAttr.Value);
+                        if (dllOriginalPath != null && Options.ignoredDllPaths.Any(p => ComparePathsWithWildcards(dllOriginalPath, p)))
                         {
                             continue;
                         }
@@ -174,6 +190,91 @@ namespace UnityNativeTool.Internal
             return path
                 .Replace(DLL_PATH_PATTERN_ASSETS_MACRO, _assetsPath)
                 .Replace(DLL_PATH_PATTERN_PROJECT_MACRO, _assetsPath + "/../");
+        }
+
+        private static bool ComparePathsWithWildcards(string absolutePath, string pattern)
+        {
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX
+            absolutePath = absolutePath.ToLower();
+            pattern = pattern.ToLower();
+#endif
+            var pathSegments = absolutePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var patternSegments = pattern.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if(patternSegments.Count(s => s == "**") > 1)
+            {
+                throw new ArgumentException($"{nameof(pattern)} cannot contain more than one ** wildcard");
+            }
+            if (patternSegments.Any(s => s.Contains("**") && s.Length != 2))
+            {
+                throw new ArgumentException($"{nameof(pattern)}: invalid usage of ** wildcard");
+            }
+
+            if(patternSegments.Contains("**"))
+            {
+                int recursiveDirWildcardIndex = Array.FindIndex(patternSegments, s => s == "**");
+                patternSegments = patternSegments
+                    .Take(recursiveDirWildcardIndex)
+                    .Concat(Enumerable.Repeat("*", pathSegments.Length - patternSegments.Length + 1))
+                    .Concat(patternSegments.Skip(recursiveDirWildcardIndex + 1))
+                    .ToArray();
+            }
+
+            if(pathSegments.Length != patternSegments.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < patternSegments.Length; i++)
+            {
+                //Regex.Escape(patternSegments[i]).Replace("*", "\\*")
+                var pathSegment = pathSegments[i];
+                var patternSegment = patternSegments[i];
+                if(pathSegment == patternSegment || patternSegment == "*")
+                {
+                    continue;
+                }
+
+                bool nextCharMustMatch = true;
+                for (int j = 0, k = 0; j < pathSegments[i].Length; j++)
+                {
+                    if(k >= patternSegment.Length)
+                    {
+                        return false;
+                    }
+                    else if(pathSegment[j] == patternSegment[k] || patternSegment[k] == '?')
+                    {
+                        nextCharMustMatch = true;
+                        k++;
+                    }
+                    else if (patternSegment[k] == '*')
+                    {
+                        if(k < patternSegment.Length - 1 && patternSegment[k + 1] == '?')
+                        {
+                            throw new ArgumentException($"{nameof(pattern)}: invalid use of ? wildcard");
+                        }
+
+                        if (k == patternSegment.Length - 1)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            nextCharMustMatch = false;
+                            k++;
+                        }
+                    }
+                    else
+                    {
+                        if (nextCharMustMatch)
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
         }
 
         public static void MockNativeFunction(MethodInfo function)
@@ -659,7 +760,9 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorOptions
     {
         public string dllPathPattern;
-        public string[] assemblyPaths; //empty means only executing assembly
+        public string[] assemblyPaths; // Empty means only executing assembly
+        public string[] ignoredDllNames;
+        public string[] ignoredDllPaths;
         public DllLoadingMode loadingMode;
         public Unix_DlopenFlags unixDlopenFlags;
         public bool threadSafe;

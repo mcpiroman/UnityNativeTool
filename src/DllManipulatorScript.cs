@@ -21,6 +21,8 @@ namespace UnityNativeTool
             dllPathPattern = "{assets}/Plugins/__{name}.dylib",
 #endif
             assemblyPaths = new string[0],
+            ignoredDllNames = new string[0], //DefaultIgnoredDllNames.VALUE,
+            ignoredDllPaths = DefaultIgnoredDllPaths.VALUE,
             loadingMode = DllLoadingMode.Lazy,
             unixDlopenFlags = Unix_DlopenFlags.Lazy,
             threadSafe = false,

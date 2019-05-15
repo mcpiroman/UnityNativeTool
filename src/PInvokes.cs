@@ -9,6 +9,7 @@ namespace UnityNativeTool.Internal
     internal static class PInvokes_Windows
     {
         public static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+        public const int ERROR_FILE_NOT_FOUND = 0x2;
 
         /// <summary>A bit-field of flags for protections</summary>
         [Flags]

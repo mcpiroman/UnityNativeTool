@@ -4,7 +4,10 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEditor;
+using System.Linq;
 
 namespace UnityNativeTool.Internal
 {
@@ -12,51 +15,61 @@ namespace UnityNativeTool.Internal
     {
         private readonly Dictionary<string, string> _dllPathsCache = new Dictionary<string, string>();
 
-        public string ResolveDllPath(string dllName)
+        public string Resolve(string dllName)
         {
 #if UNITY_STANDALONE_WIN
-            return ResolveDllPath_Windows(dllName);
+            return Resolve_Windows(dllName);
 #elif UNITY_STANDALONE_LINUX
 #elif UNITY_STANDALONE_OSX
 #endif
         }
 
-        private string ResolveDllPath_Windows(string dllName)
+        private string Resolve_Windows(string dllName)
         {
-            if (_dllPathsCache.TryGetValue(dllName, out var path))
+            if (_dllPathsCache.TryGetValue(dllName, out var val))
             {
-                return path;
+                return val;
             }
 
-            IntPtr libHandle = PInvokes_Windows.LoadLibraryEx(dllName, IntPtr.Zero, PInvokes_Windows.LoadLibraryFlags.LOAD_LIBRARY_AS_DATAFILE);
-            if (libHandle == IntPtr.Zero) //FIXME: LoadLibraryEx returns 0 with error 0x2: "File not found" first time each library is loaded
+            IntPtr hLib = PInvokes_Windows.LoadLibraryEx(dllName, IntPtr.Zero, PInvokes_Windows.LoadLibraryFlags.LOAD_LIBRARY_AS_DATAFILE);
+            if (hLib == IntPtr.Zero)
             {
                 var errorCode = Marshal.GetLastWin32Error();
-                Debug.LogWarning($"LoadLibraryEx returned 0. Error code: {errorCode}");
-                Debug.LogWarning($"Error message: {GetSystemMessage(errorCode)}");
-                Debug.LogWarning($"dllName: {dllName}");
-                return null;
-            }
-            
-            try
-            {
-                IntPtr procHandle = PInvokes_Windows.GetCurrentProcess();
-
-                var devicePathBufferSize = 260;
-                var devicePath = new StringBuilder(devicePathBufferSize);
-                var pathLength = PInvokes_Windows.GetMappedFileName(procHandle, libHandle, devicePath, (uint)devicePathBufferSize);
-                if (pathLength == 0)
+                if (errorCode == PInvokes_Windows.ERROR_FILE_NOT_FOUND)
                 {
-                    throw new Win32Exception();
+                    var path = ResolveFromAssets(dllName);
+                    _dllPathsCache.Add(dllName, path);
+                    return path;
                 }
-
-                var dosPath = devicePath == null ? null : WindowsDeviceToDosPath(devicePath.ToString());
-                _dllPathsCache.Add(dllName, dosPath);
-                return dosPath;
+                else
+                {
+                    Debug.LogWarning($"LoadLibraryEx returned with error code {errorCode}");
+                    _dllPathsCache.Add(dllName, null);
+                    return null;
+                }
             }
-            finally
+            else
             {
-                PInvokes_Windows.FreeLibrary(libHandle);
+                try
+                {
+                    IntPtr hProc = PInvokes_Windows.GetCurrentProcess();
+
+                    var devicePathBufferSize = 260;
+                    var devicePath = new StringBuilder(devicePathBufferSize);
+                    var pathLength = PInvokes_Windows.GetMappedFileName(hProc, hLib, devicePath, (uint)devicePathBufferSize);
+                    if (pathLength == 0)
+                    {
+                        throw new Win32Exception();
+                    }
+
+                    var dosPath = devicePath == null ? null : WindowsDeviceToDosPath(devicePath.ToString());
+                    _dllPathsCache.Add(dllName, dosPath);
+                    return dosPath;
+                }
+                finally
+                {
+                    PInvokes_Windows.FreeLibrary(hLib);
+                }
             }
         }
 
@@ -78,60 +91,35 @@ namespace UnityNativeTool.Internal
             }
 
             var dosPath = dosPathBuffer.ToString();
-            const string CUT_PREFIX = "\\\\?\\";
-            if(dosPath.StartsWith(CUT_PREFIX))
+            const string CUT_DOS_PREFIX = "\\\\?\\";
+            if(dosPath.StartsWith(CUT_DOS_PREFIX))
             {
-                dosPath = dosPath.Substring(CUT_PREFIX.Length);
+                dosPath = dosPath.Substring(CUT_DOS_PREFIX.Length);
             }
 
             return dosPath;
         }
 
+        private string ResolveFromAssets(string dllName)
+        {
+#if UNITY_STANDALONE_WIN
+            var fileNameRegex = new Regex("^" + dllName.TrimEnd(".dll") + ".dll$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+#elif UNITY_STANDALONE_LINUX
+            var fileNameRegex = new Regex("^(lib)?" + dllName.TrimEnd(".so") + ".so$", RegexOptions.CultureInvariant | RegexOptions.Singleline);
+#elif UNITY_STANDALONE_OSX
+            var fileNameRegex = new Regex("^(lib)?" + dllName.TrimEnd(".dynlib") + ".dynlib$",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+#endif
+
+            return PluginImporter.GetAllImporters()
+                .Where(plugin => Directory.GetParent(plugin.assetPath).FullName.ToLower() == Path.Combine(Application.dataPath, "plugins").ToLower() ||
+                    (IntPtr.Size == 8 ? new[] { "x64", "x86_64" } : new[] { "x86" }).Contains(Directory.GetParent(plugin.assetPath).Name))
+                .Where(plugin => plugin.isNativePlugin && plugin.GetCompatibleWithEditor())
+                .FirstOrDefault(plugin => fileNameRegex.IsMatch(Path.GetFileName(plugin.assetPath)))?.assetPath;
+        }
 
         public void ClearCache()
         {
             _dllPathsCache.Clear();
-        }
-
-
-        /// <summary>
-        /// Gets a user friendly string message for a system error code
-        /// </summary>
-        /// <param name="errorCode">System error code</param>
-        /// <returns>Error string</returns>
-        public static string GetSystemMessage(int errorCode)
-        {
-            try
-            {
-                IntPtr lpMsgBuf = IntPtr.Zero;
-
-                int dwChars = PInvokes_Windows.FormatMessage(
-                    PInvokes_Windows.FormatMessageFlags.FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-                    PInvokes_Windows.FormatMessageFlags.FORMAT_MESSAGE_FROM_SYSTEM | 
-                    PInvokes_Windows.FormatMessageFlags.FORMAT_MESSAGE_IGNORE_INSERTS,
-                    IntPtr.Zero,
-                    (uint)errorCode,
-                    0, // Default language
-                    ref lpMsgBuf,
-                    0,
-                    IntPtr.Zero);
-                if (dwChars == 0)
-                {
-                    // Handle the error.
-                    int le = Marshal.GetLastWin32Error();
-                    return "Unable to get error code string from System - Error " + le.ToString();
-                }
-
-                string sRet = Marshal.PtrToStringAnsi(lpMsgBuf);
-
-                // Free the buffer.
-                lpMsgBuf = PInvokes_Windows.LocalFree(lpMsgBuf);
-                return sRet;
-            }
-            catch (Exception e)
-            {
-                return "Unable to get error code string from System -> " + e.ToString();
-            }
         }
     }
 }

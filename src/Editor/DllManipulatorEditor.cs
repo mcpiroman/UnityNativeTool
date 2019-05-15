@@ -17,6 +17,10 @@ namespace UnityNativeTool.Internal
             "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
         private readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
             "Choose from which assemblies to mock native functions");
+        private readonly GUIContent IGNORED_DLL_NAMES_GUI_CONTENT = new GUIContent("Ignored DLLs",
+            "List of DLL names that will be handled by Unity in usual way. Uses Regex.");
+        private readonly GUIContent IGNORED_DLL_PATHS_GUI_CONTENT = new GUIContent("Ignored DLL paths",
+            "If DLL is found at matching path, it will be handled by Unity in usual way.");
         private readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
             "Available macros:\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_DLL_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
@@ -48,8 +52,10 @@ namespace UnityNativeTool.Internal
         private readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
             "Use only if you are sure no other thread will be call mocked natives.");
 
-        private bool _showLoadedLibraries = true;
+        private bool _showIgnoredDllNames = false;
+        private bool _showIgnoredDllPaths = false;
         private bool _showTargetAssemblies = true;
+        private bool _showLoadedLibraries = true;
 
         public DllManipulatorEditor()
         {
@@ -214,45 +220,45 @@ namespace UnityNativeTool.Internal
                 {
                     var prevIndent2 = EditorGUI.indentLevel;
                     EditorGUI.indentLevel++;
-                    
-                    var assemblyPaths = new List<string>(options.assemblyPaths);
-                    assemblyPaths.RemoveAll(p => !allAssemblies.Any(a => PathUtils.DllPathsEquals(a.outputPath, p)));
-                    var selectedAssemblies = assemblyPaths.Select(p => allAssemblies.First(a => PathUtils.DllPathsEquals(a.outputPath, p))).ToArray();
-                    var notSelectedAssemblies = allAssemblies.Except(selectedAssemblies).ToArray();
-                    for (int i = 0; i <= assemblyPaths.Count; i++)
-                    {
-                        var values = new List<string> { "<None>" };
-                        bool isLast = i == assemblyPaths.Count;
-                        if (!isLast)
-                        {
-                            values.Add(selectedAssemblies[i].name);
-                        }
-                        values.AddRange(notSelectedAssemblies.Select(a => a.name));
 
-                        var selectedIndex = EditorGUILayout.Popup(isLast ? 0 : 1, values.ToArray());
-                        if (selectedIndex == 0 && !isLast)
-                        {
-                            assemblyPaths[i] = null;
-                        }
-                        else if (selectedIndex > 0 && (selectedIndex > 1 || isLast))
-                        {
-                            var path = PathUtils.NormallizeUnityAssemblyPath(notSelectedAssemblies[selectedIndex - (isLast ? 1 : 2)].outputPath);
-                            if (isLast)
-                            {
-                                assemblyPaths.Add(path);
-                            }
-                            else
-                            {
-                                assemblyPaths[i] = path;
-                            }
-                        }
-                    }
-                    options.assemblyPaths = assemblyPaths.Where(p => p != null).ToArray();
+                    var selectedAssemblyPaths = options.assemblyPaths.Where(p => allAssemblies.Any(a => PathUtils.DllPathsEquals(a.outputPath, p)));
+                    var selectedAssemblies = selectedAssemblyPaths.Select(p => allAssemblies.First(a => PathUtils.DllPathsEquals(a.outputPath, p))).ToList();
+                    var notSelectedAssemblies = allAssemblies.Except(selectedAssemblies).ToArray();
+                    DrawList(selectedAssemblies, i =>
+                    {
+                        var values = new List<string> { selectedAssemblies[i].name };
+                        values.AddRange(notSelectedAssemblies.Select(a => a.name));
+                        var selectedIndex = EditorGUILayout.Popup(0, values.ToArray());
+                        return selectedIndex == 0 ? selectedAssemblies[i] : notSelectedAssemblies[selectedIndex - 1];
+                    }, notSelectedAssemblies.Length > 0, () => notSelectedAssemblies[0]);
+                    options.assemblyPaths = selectedAssemblies.Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath)).ToArray();
 
                     EditorGUI.indentLevel = prevIndent2;
                 }
 
                 EditorGUI.indentLevel = prevIndent1;
+            }
+
+            _showIgnoredDllNames = EditorGUILayout.Foldout(_showIgnoredDllNames, IGNORED_DLL_NAMES_GUI_CONTENT);
+            if (_showIgnoredDllNames)
+            {
+                var prevIndent = EditorGUI.indentLevel;
+                EditorGUI.indentLevel++;
+                var ignoredDllNames = options.ignoredDllNames.ToList();
+                DrawList(ignoredDllNames, i => EditorGUILayout.TextField(ignoredDllNames[i]), true, () => "");
+                options.ignoredDllNames = ignoredDllNames.ToArray();
+                EditorGUI.indentLevel = prevIndent;
+            }
+
+            _showIgnoredDllPaths = EditorGUILayout.Foldout(_showIgnoredDllPaths, IGNORED_DLL_PATHS_GUI_CONTENT);
+            if (_showIgnoredDllPaths)
+            {
+                var prevIndent = EditorGUI.indentLevel;
+                EditorGUI.indentLevel++;
+                var ignoredDllPaths = options.ignoredDllPaths.ToList();
+                DrawList(ignoredDllPaths, i => EditorGUILayout.TextField(ignoredDllPaths[i]), true, () => "");
+                options.ignoredDllPaths = ignoredDllPaths.ToArray();
+                EditorGUI.indentLevel = prevIndent;
             }
 
             options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
@@ -287,6 +293,37 @@ namespace UnityNativeTool.Internal
             }
 
             GUI.enabled = guiEnabledStack.Pop();
+        }
+
+        private void DrawList<T>(IList<T> elements, System.Func<int, T> drawElement, bool canAddNewElement, System.Func<T> getNewElement)
+        {
+            int indexToRemove = -1;
+            for (int i = 0; i < elements.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                elements[i] = drawElement(i);
+                if(GUILayout.Button("X", GUILayout.Width(20)))
+                {
+                    indexToRemove = i;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if(indexToRemove != -1)
+            {
+                elements.RemoveAt(indexToRemove);
+            }
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(EditorGUI.indentLevel * 15);
+            var prevGuiEnabled = GUI.enabled;
+            GUI.enabled = canAddNewElement;
+            if (GUILayout.Button("Add", GUILayout.Width(40)))
+            {
+                elements.Add(getNewElement());
+            }
+            GUI.enabled = prevGuiEnabled;
+            GUILayout.EndHorizontal();
         }
 
         string GetFirstAssemblyPath(Assembly[] allAssemblies)
