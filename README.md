@@ -1,5 +1,4 @@
-# UnityNativeTool
-Tool created mainly to solve old problem with unloading native plugins without the need to reopen Unity Editor.
+Tool created mainly to solve old problem with unloading [native plugins](https://docs.unity3d.com/Manual/NativePlugins.html) without the need to reopen Unity Editor.
 
 ## Features
 - Automaticly unloads native plugins after stopping game and loads them when needed
@@ -14,18 +13,18 @@ Tool created mainly to solve old problem with unloading native plugins without t
 2. In project settings, set _Api Compatibility Level_ to .NET 4.x or above.  
    Edit > Project Settings > Player > Other Settings > Api Compatibility Level
    
-3. Set _Allow 'unsafe' code_ to true.  
+3. Check _Allow 'unsafe' code_.  
    Edit > Project Settings > Player > Other Settings > Allow 'unsafe' code
 
 4. Set execution order of script `UnityNativeTool.DllManipulatorScript` to be the lowest of all scripts in game (at least of scripts that use native functions), e.g -10000.  
    Edit > Project Settings > Script Execution Order
 
-5. One game object in the scene needs to have `DllManipulatorScript` on it. By default this script has `DontDestroayOnLoad(gameObject)` call, and deletes itself when dupliacate is found. 
+5. One game object in the scene needs to have `DllManipulatorScript` on it. This script has `DontDestroayOnLoad(gameObject)` call, and deletes itself when dupliacate is found.
 
 ## Usage
-- Your plugin files must be at path specified in options. By default you just add __ at the beginning of your dll file in Assets/Plugins folder.
-- By default, all native functions in scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity). You can change that in options and use attributes to select which functions you want or don't want to be mocked. Attributes are in namespace `UnityNativeTool`.
-- If something is not working, first check out available options (and read their description), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues).
+- Your plugin files must be at path specified in options. By default you add __ (two underscores) at the beginning of your dll file in Assets/Plugins folder.
+- By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity). You can change that in options and use provided attributes to specify it by yourself (these are in `UnityNativeTool`  namespace).
+- If something is not working, first check out available options (and read their description), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 - Options are accessible via `DllManipulatorScript` editor or window.
 - Although presumably runs in builded game, it's intended to be used in editor.
 
@@ -46,7 +45,7 @@ Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Targe
 | With thread safety | ~300ms |
 
 ## Planned/possible features
-- Debugging native functions
+- Seamless native code debugging
 - Improved thread safety and interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
 - Diffrent mocking methods (IL/metadata/assembly manipulation)
