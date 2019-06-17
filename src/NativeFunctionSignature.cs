@@ -31,44 +31,28 @@ namespace UnityNativeTool.Internal
         {
             var other = obj as NativeFunctionSignature;
             if (other == null)
-            {
                 return false;
-            }
 
             if(!returnParameter.Equals(other.returnParameter))
-            {
                 return false;
-            }
 
             if (!parameters.SequenceEqual(other.parameters))
-            {
                 return false;
-            }
 
             if (callingConvention != other.callingConvention)
-            {
                 return false;
-            }
 
             if (bestFitMapping != other.bestFitMapping)
-            {
                 return false;
-            }
 
             if (charSet != other.charSet)
-            {
                 return false;
-            }
 
             if (setLastError != other.setLastError)
-            {
                 return false;
-            }
 
             if (throwOnUnmappableChar != other.throwOnUnmappableChar)
-            {
                 return false;
-            }
 
             return true;
         }
@@ -113,24 +97,16 @@ namespace UnityNativeTool.Internal
         {
             var other = obj as NativeFunctionParameterSignature;
             if(other == null)
-            {
                 return false;
-            }
 
             if (type != other.type)
-            {
                 return false;
-            }
 
             if (parameterAttributes != other.parameterAttributes)
-            {
                 return false;
-            }
             
             if (customAttributes.Except(other.customAttributes).Any()) //Check if arrays have the same elements
-            {
                 return false;
-            }
 
             return true;
         }

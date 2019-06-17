@@ -63,13 +63,9 @@ namespace UnityNativeTool.Internal
             }
 
             if (value > -129 && value < 128)
-            {
                 il.Emit(OpCodes.Ldc_I4_S, (sbyte)value);
-            }
             else
-            {
                 il.Emit(OpCodes.Ldc_I4, value);
-            }
         }
     }
 }

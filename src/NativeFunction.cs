@@ -16,9 +16,7 @@ namespace UnityNativeTool.Internal
         public override bool Equals(object obj)
         {
             if (obj is NativeFunctionIdentity other)
-            {
                 return symbol == other.symbol && containingDllName == other.containingDllName;
-            }
 
             return false;
         }

@@ -35,9 +35,7 @@ namespace UnityNativeTool
             if (_singletonInstance != null)
             {
                 if (_singletonInstance != this)
-                {
                     Destroy(gameObject);
-                }
 
                 return;
             }
@@ -73,9 +71,7 @@ namespace UnityNativeTool
             }
 
             if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload)
-            {
                 DllManipulator.LoadAll();
-            }
 
             timer.Stop();
             InitializationTime = timer.Elapsed;

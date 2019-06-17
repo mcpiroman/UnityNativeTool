@@ -79,9 +79,7 @@ namespace UnityNativeTool.Internal
                     }
 
                     if (GUILayout.Button("Load all DLLs"))
-                    {
                         DllManipulator.LoadAll();
-                    }
                 }
 
                 if (usedDlls.Any(d => d.isLoaded))
@@ -90,13 +88,9 @@ namespace UnityNativeTool.Internal
                     {
                         bool pauseAndUnloadAll;
                         if(t.Options.threadSafe)
-                        {
                             pauseAndUnloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT);
-                        }
                         else
-                        {
                             pauseAndUnloadAll = GUILayout.Button("Unload all DLLs & Pause");
-                        }
 
                         if(pauseAndUnloadAll)
                         {
@@ -108,22 +102,14 @@ namespace UnityNativeTool.Internal
 
                     bool unloadAll;
                     if(EditorApplication.isPlaying && t.Options.threadSafe)
-                    {
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT);
-                    }
                     else if (EditorApplication.isPlaying && !EditorApplication.isPaused && t.Options.loadingMode == DllLoadingMode.Preload)
-                    {
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT);
-                    }
                     else
-                    {
                         unloadAll = GUILayout.Button("Unload all DLLs");
-                    }
 
                     if(unloadAll)
-                    {
                         DllManipulator.UnloadAll();
-                    }
                 }
 
                 DrawUsedDlls(usedDlls);
@@ -157,22 +143,16 @@ namespace UnityNativeTool.Internal
                 foreach (var dll in usedDlls)
                 {
                     if (!isFirstDll)
-                    {
                         EditorGUILayout.Space();
-                    }
 
                     var stateAttributes = new List<string>
                         {
                             dll.isLoaded ? "LOADED" : "NOT LOADED"
                         };
                     if (dll.loadingError)
-                    {
                         stateAttributes.Add("LOAD ERROR");
-                    }
                     if (dll.symbolError)
-                    {
                         stateAttributes.Add("SYMBOL ERRROR");
-                    }
                     var state = string.Join(" | ", stateAttributes);
 
                     EditorGUILayout.LabelField($"[{state}] {dll.name}");
@@ -189,9 +169,7 @@ namespace UnityNativeTool.Internal
 
             guiEnabledStack.Push(GUI.enabled);
             if (EditorApplication.isPlaying)
-            {
                 GUI.enabled = false;
-            }
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
             if (EditorGUILayout.Toggle(TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT, options.assemblyPaths.Length == 0))
@@ -205,9 +183,7 @@ namespace UnityNativeTool.Internal
 
                 var allAssemblies = CompilationPipeline.GetAssemblies();
                 if (options.assemblyPaths.Length == 0)
-                {
                     options.assemblyPaths = new[] { GetFirstAssemblyPath(allAssemblies) };
-                }
 
                 _showTargetAssemblies = EditorGUILayout.Foldout(_showTargetAssemblies, TARGET_ASSEMBLIES_GUI_CONTENT);
                 if (_showTargetAssemblies)
@@ -224,9 +200,7 @@ namespace UnityNativeTool.Internal
                         var values = new List<string> { "<None>" };
                         bool isLast = i == assemblyPaths.Count;
                         if (!isLast)
-                        {
                             values.Add(selectedAssemblies[i].name);
-                        }
                         values.AddRange(notSelectedAssemblies.Select(a => a.name));
 
                         var selectedIndex = EditorGUILayout.Popup(isLast ? 0 : 1, values.ToArray());
@@ -238,13 +212,9 @@ namespace UnityNativeTool.Internal
                         {
                             var path = PathUtils.NormallizeUnityAssemblyPath(notSelectedAssemblies[selectedIndex - (isLast ? 1 : 2)].outputPath);
                             if (isLast)
-                            {
                                 assemblyPaths.Add(path);
-                            }
                             else
-                            {
                                 assemblyPaths[i] = path;
-                            }
                         }
                     }
                     options.assemblyPaths = assemblyPaths.Where(p => p != null).ToArray();

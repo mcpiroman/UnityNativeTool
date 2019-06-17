@@ -90,9 +90,7 @@ namespace UnityNativeTool.Internal
                         }
 
                         if (!success)
-                        {
                             Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
-                        }
                     }
                 }
             }
@@ -117,9 +115,7 @@ namespace UnityNativeTool.Internal
                 foreach (var filePath in Directory.GetFiles(dir))
                 {
                     if (Path.GetFileName(filePath).StartsWith(CRASH_FILE_NAME_PREFIX))
-                    {
                         File.Delete(filePath);
-                    }
                 }
             }
         }
@@ -151,19 +147,13 @@ namespace UnityNativeTool.Internal
                     if (method.IsDefined(typeof(DllImportAttribute)))
                     {
                         if (method.IsDefined(typeof(DisableMockingAttribute)))
-                        {
                             continue;
-                        }
 
                         if (method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
-                        {
                             continue;
-                        }
 
                         if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
-                        {
                             yield return method;
-                        }
                     }
                 }
             }
@@ -244,9 +234,7 @@ namespace UnityNativeTool.Internal
             if (Options.threadSafe)
             {
                 if (!returnsVoid)
-                {
                     il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
-                }
 
                 il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
                 il.Emit(OpCodes.Call, RwlsEnterReadLocKMethod.Value);
@@ -259,9 +247,7 @@ namespace UnityNativeTool.Internal
             if (Options.loadingMode == DllLoadingMode.Lazy)
             {
                 if (Options.threadSafe)
-                {
                     throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
-                }
 
                 il.Emit(OpCodes.Dup);
                 il.Emit(OpCodes.Call, LoadTargetFunctionMethod.Value);
@@ -276,9 +262,7 @@ namespace UnityNativeTool.Internal
                     il.EmitFastI4Load(i);
                     il.EmitFastArgLoad(i);
                     if (parameterTypes[i].IsValueType)
-                    {
                         il.Emit(OpCodes.Box, parameterTypes[i]);
-                    }
                     il.Emit(OpCodes.Stelem_Ref);
                 }
                 il.Emit(OpCodes.Call, WriteNativeCrashLogMethod.Value);
@@ -300,9 +284,7 @@ namespace UnityNativeTool.Internal
             {
                 var retLabel = il.DefineLabel();
                 if (!returnsVoid)
-                {
                     il.Emit(OpCodes.Stloc_0);
-                }
                 il.Emit(OpCodes.Leave_S, retLabel);
                 il.BeginFinallyBlock();
                 il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
@@ -310,9 +292,7 @@ namespace UnityNativeTool.Internal
                 il.EndExceptionBlock();
                 il.MarkLabel(retLabel);
                 if (!returnsVoid)
-                {
                     il.Emit(OpCodes.Ldloc_0);
-                }
             }
             il.Emit(OpCodes.Ret);
         }
@@ -353,7 +333,9 @@ namespace UnityNativeTool.Internal
             object runtimeMethodInfo = null;
             var f_m_value = handle.GetType().GetField("m_value", nonPublicInstance);
             if (f_m_value != null)
+            {
                 runtimeMethodInfo = f_m_value.GetValue(handle);
+            }
             else
             {
                 var m_GetMethodInfo = handle.GetType().GetMethod("GetMethodInfo", nonPublicInstance);
@@ -399,9 +381,7 @@ namespace UnityNativeTool.Internal
         private static void AddNativeFunction(NativeFunction nativeFunction)
         {
             if (_nativeFunctions == null)
-            {
                 _nativeFunctions = new NativeFunction[4];
-            }
 
             if (_nativeFunctionsCount == _nativeFunctions.Length)
             {
@@ -599,13 +579,9 @@ namespace UnityNativeTool.Internal
 
                     writer.Write("thread: ");
                     if(threadId == _unityMainThreadId)
-                    {
                         writer.WriteLine("unity main thread");
-                    }
                     else
-                    {
                         writer.WriteLine($"{Thread.CurrentThread.Name}({threadId})");
-                    }
 
                     var nativeCallIndex = Interlocked.Increment(ref _lastNativeCallIndex) - 1;
                     writer.Write("call index: ");

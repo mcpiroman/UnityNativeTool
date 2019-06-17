@@ -17,10 +17,8 @@ namespace UnityNativeTool.Internal
         {
             var dllManipulator = FindObjectOfType<DllManipulatorScript>();
             if (dllManipulator == null)
-            {
                 dllManipulator = Resources.FindObjectsOfTypeAll<DllManipulatorScript>()
                     .FirstOrDefault(d => !EditorUtility.IsPersistent(d) && d.gameObject.scene.IsValid());
-            }
 
             if (dllManipulator != null)
             {
