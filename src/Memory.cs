@@ -52,8 +52,6 @@ namespace UnityNativeTool.Internal
         /// <param name="method">The method to change</param>
         unsafe public static void MarkForNoInlining(MethodBase method)
         {
-            //var methodDef = method.MetadataToken;
-
             // TODO for now, this only works on mono
             if (Type.GetType("Mono.Runtime") != null)
             {

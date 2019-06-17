@@ -221,64 +221,66 @@ namespace UnityNativeTool.Internal
                     mockedDynamicMethod.DefineParameter(i + 1, parameters[i].Attributes, null);
                 }
 
-                GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters.Length, parameterTypes, targetDelegateInvokeMethod, nativeFunctionIndex);
+                GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters, targetDelegateInvokeMethod, nativeFunctionIndex);
             }
 
             return mockedDynamicMethod;
         }
 
-        private static void GenerateNativeFunctionMockBody(ILGenerator il, int parameterCount, Type[] parameterTypes, MethodInfo delegateInvokeMethod, int nativeFunctionIndex)
+        private static void GenerateNativeFunctionMockBody(ILGenerator il, ParameterInfo[] parameters, MethodInfo delegateInvokeMethod, int nativeFunctionIndex)
         {
             var returnsVoid = delegateInvokeMethod.ReturnType == typeof(void);
 
             if (Options.threadSafe)
             {
                 if (!returnsVoid)
-                    il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: returnValue
+                    il.DeclareLocal(delegateInvokeMethod.ReturnType); //Local 0: return value
 
-                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
-                il.Emit(OpCodes.Call, RwlsEnterReadLocKMethod.Value);
-                il.BeginExceptionBlock();
+                il.Emit(OpCodes.Ldsfld, Field_NativeFunctionLoadLock.Value);
+                il.Emit(OpCodes.Call, Method_Rwls_EnterReadLock.Value);
+                il.BeginExceptionBlock(); //Start lock clause: lock, try {  ...  }, finally { release }
             }
 
-            il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value);
+            il.Emit(OpCodes.Ldsfld, Field_NativeFunctions.Value); //Load NativeFunction object
             il.EmitFastI4Load(nativeFunctionIndex);
             il.Emit(OpCodes.Ldelem_Ref);
-            if (Options.loadingMode == DllLoadingMode.Lazy)
+
+            if (Options.loadingMode == DllLoadingMode.Lazy) //If lazy mode, load the function. Otherwise we assume it's already loaded
             {
                 if (Options.threadSafe)
                     throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
 
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Call, LoadTargetFunctionMethod.Value);
+                il.Emit(OpCodes.Call, Method_LoadTargetFunction.Value);
             }
-            if (Options.crashLogs)
+
+            if (Options.crashLogs) //Log function invocation
             {
-                il.EmitFastI4Load(parameterCount); //Generate array of arguments
+                il.EmitFastI4Load(parameters.Length); //Generate array of arguments
                 il.Emit(OpCodes.Newarr, typeof(object));
-                for (int i = 0; i < parameterCount; i++)
+                for (int i = 0; i < parameters.Length; i++)
                 {
                     il.Emit(OpCodes.Dup);
                     il.EmitFastI4Load(i);
                     il.EmitFastArgLoad(i);
-                    if (parameterTypes[i].IsValueType)
-                        il.Emit(OpCodes.Box, parameterTypes[i]);
+                    if (parameters[i].ParameterType.IsValueType)
+                        il.Emit(OpCodes.Box, parameters[i].ParameterType);
                     il.Emit(OpCodes.Stelem_Ref);
                 }
-                il.Emit(OpCodes.Call, WriteNativeCrashLogMethod.Value);
+                il.Emit(OpCodes.Call, Method_WriteNativeCrashLog.Value);
 
-                il.Emit(OpCodes.Ldsfld, NativeFunctionsField.Value); //Once again load native function (previous one was consumed by log method)
+                il.Emit(OpCodes.Ldsfld, Field_NativeFunctions.Value); //Once again load native function, previous one was consumed by log method
                 il.EmitFastI4Load(nativeFunctionIndex);
                 il.Emit(OpCodes.Ldelem_Ref);
             }
-            il.Emit(OpCodes.Ldfld, NativeFunctionDelegateField.Value);
-            //Seems like cast to concrete delegate type is not required here
 
-            for (int i = 0; i < parameterCount; i++)
+            il.Emit(OpCodes.Ldfld, Field_NativeFunctionDelegate.Value);
+            //Seems like cast to concrete delegate type is not required here
+            for (int i = 0; i < parameters.Length; i++)
             {
                 il.EmitFastArgLoad(i);
             }
-            il.Emit(OpCodes.Callvirt, delegateInvokeMethod);
+            il.Emit(OpCodes.Callvirt, delegateInvokeMethod); //Call native function
 
             if (Options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
             {
@@ -287,8 +289,8 @@ namespace UnityNativeTool.Internal
                     il.Emit(OpCodes.Stloc_0);
                 il.Emit(OpCodes.Leave_S, retLabel);
                 il.BeginFinallyBlock();
-                il.Emit(OpCodes.Ldsfld, NativeFunctionLoadLockField.Value);
-                il.Emit(OpCodes.Call, RwlsExitReadLockMethod.Value);
+                il.Emit(OpCodes.Ldsfld, Field_NativeFunctionLoadLock.Value);
+                il.Emit(OpCodes.Call, Method_DynamicMethod_CreateDynMethod.Value);
                 il.EndExceptionBlock();
                 il.MarkLabel(retLabel);
                 if (!returnsVoid)
@@ -303,75 +305,60 @@ namespace UnityNativeTool.Internal
         private static void PrepareDynamicMethod(DynamicMethod method)
         {
             //
-            // This method is essentially copy of DynamicTools.PrepareDynamicMethod(DynamicMethod method) from https://github.com/pardeike/Harmony
+            // This method is logically copy of DynamicTools.PrepareDynamicMethod(DynamicMethod method) from https://github.com/pardeike/Harmony
             //
 
-            var nonPublicInstance = BindingFlags.NonPublic | BindingFlags.Instance;
-            var nonPublicStatic = BindingFlags.NonPublic | BindingFlags.Static;
-
-            // on mono, just call 'CreateDynMethod'
-            //
-            var m_CreateDynMethod = method.GetType().GetMethod("CreateDynMethod", nonPublicInstance);
-            if (m_CreateDynMethod != null)
+            //On mono, just call 'CreateDynMethod'
+            if (Method_DynamicMethod_CreateDynMethod.Value != null)
             {
-                var h_CreateDynMethod = MethodInvoker.GetHandler(m_CreateDynMethod);
+                var h_CreateDynMethod = MethodInvoker.GetHandler(Method_DynamicMethod_CreateDynMethod.Value);
                 h_CreateDynMethod(method, new object[0]);
-                return;
-            }
-
-            // on all .NET Core versions, call 'RuntimeHelpers._CompileMethod' but with a different parameter:
-            //
-            var m__CompileMethod = typeof(RuntimeHelpers).GetMethod("_CompileMethod", nonPublicStatic);
-            var h__CompileMethod = MethodInvoker.GetHandler(m__CompileMethod);
-
-            var m_GetMethodDescriptor = method.GetType().GetMethod("GetMethodDescriptor", nonPublicInstance);
-            var h_GetMethodDescriptor = MethodInvoker.GetHandler(m_GetMethodDescriptor);
-            var handle = (RuntimeMethodHandle)h_GetMethodDescriptor(method, new object[0]);
-
-            // 1) RuntimeHelpers._CompileMethod(handle.GetMethodInfo())
-            //
-            object runtimeMethodInfo = null;
-            var f_m_value = handle.GetType().GetField("m_value", nonPublicInstance);
-            if (f_m_value != null)
-            {
-                runtimeMethodInfo = f_m_value.GetValue(handle);
             }
             else
             {
-                var m_GetMethodInfo = handle.GetType().GetMethod("GetMethodInfo", nonPublicInstance);
-                if (m_GetMethodInfo != null)
-                {
-                    var h_GetMethodInfo = MethodInvoker.GetHandler(m_GetMethodInfo);
-                    runtimeMethodInfo = h_GetMethodInfo(handle, new object[0]);
-                }
-            }
-            if (runtimeMethodInfo != null)
-            {
-                try
-                {
-                    // this can throw BadImageFormatException "An attempt was made to load a program with an incorrect format"
-                    h__CompileMethod(null, new object[] { runtimeMethodInfo });
-                    return;
-                }
-                catch (Exception)
-                {
-                }
-            }
+                //On all .NET Core versions, call 'RuntimeHelpers._CompileMethod' but with a different parameter:
+                var h__CompileMethod = MethodInvoker.GetHandler(Method_RuntimeHelpers__CompileMethod.Value);
 
-            // 2) RuntimeHelpers._CompileMethod(handle.Value)
-            //
-            if (m__CompileMethod.GetParameters()[0].ParameterType.IsAssignableFrom(handle.Value.GetType()))
-            {
-                h__CompileMethod(null, new object[] { handle.Value });
-                return;
-            }
+                var h_GetMethodDescriptor = MethodInvoker.GetHandler(Method_DynamicMethod_GetMethodDescriptor.Value);
+                var handle = (RuntimeMethodHandle)h_GetMethodDescriptor(method, new object[0]);
 
-            // 3) RuntimeHelpers._CompileMethod(handle)
-            //
-            if (m__CompileMethod.GetParameters()[0].ParameterType.IsAssignableFrom(handle.GetType()))
-            {
-                h__CompileMethod(null, new object[] { handle });
-                return;
+                // 1) RuntimeHelpers._CompileMethod(handle.GetMethodInfo())
+                object runtimeMethodInfo = null;
+                if (Field_RuntimeMethodHandle_m_value.Value != null)
+                {
+                    runtimeMethodInfo = Field_RuntimeMethodHandle_m_value.Value.GetValue(handle);
+                }
+                else
+                {
+                    if (Method_RuntimeMethodHandle_GetMethodInfo.Value != null)
+                    {
+                        var h_GetMethodInfo = MethodInvoker.GetHandler(Method_RuntimeMethodHandle_GetMethodInfo.Value);
+                        runtimeMethodInfo = h_GetMethodInfo(handle, new object[0]);
+                    }
+                }
+
+                if (runtimeMethodInfo != null)
+                {
+                    try
+                    {
+                        //This can throw BadImageFormatException "An attempt was made to load a program with an incorrect format"
+                        h__CompileMethod(null, new object[] { runtimeMethodInfo });
+                        return;
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                else if (Method_RuntimeHelpers__CompileMethod.Value.GetParameters()[0].ParameterType.IsAssignableFrom(handle.Value.GetType()))
+                { 
+                    // 2) RuntimeHelpers._CompileMethod(handle.Value){
+                    h__CompileMethod(null, new object[] { handle.Value });
+                }
+                else if (Method_RuntimeHelpers__CompileMethod.Value.GetParameters()[0].ParameterType.IsAssignableFrom(handle.GetType()))
+                {
+                    // 3) RuntimeHelpers._CompileMethod(handle)
+                    h__CompileMethod(null, new object[] { handle });
+                }
             }
         }
 
@@ -429,7 +416,7 @@ namespace UnityNativeTool.Internal
             var invokeReturnParam = invokeBuilder.DefineParameter(0, functionSignature.returnParameter.parameterAttributes, null);
             foreach (var attr in functionSignature.returnParameter.customAttributes)
             {
-                invokeReturnParam.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr));
+                invokeReturnParam.SetCustomAttribute(CreateMarshalingAttributeBuilderFromAttributeInstance(attr));
             }
             for (int i = 0; i < functionSignature.parameters.Length; i++)
             {
@@ -437,7 +424,7 @@ namespace UnityNativeTool.Internal
                 var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
                 foreach(var attr in param.customAttributes)
                 {
-                    paramBuilder.SetCustomAttribute(GetAttributeBuilderFromAttributeInstance(attr));
+                    paramBuilder.SetCustomAttribute(CreateMarshalingAttributeBuilderFromAttributeInstance(attr));
                 }
             }
 
@@ -445,7 +432,7 @@ namespace UnityNativeTool.Internal
             return delBuilder.CreateType();
         }
 
-        private static CustomAttributeBuilder GetAttributeBuilderFromAttributeInstance(Attribute attribute)
+        private static CustomAttributeBuilder CreateMarshalingAttributeBuilderFromAttributeInstance(Attribute attribute)
         {
             var attrType = attribute.GetType();
             switch (attribute)
