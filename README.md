@@ -1,8 +1,8 @@
-Tool created mainly to solve old problem with unloading [native plugins](https://docs.unity3d.com/Manual/NativePlugins.html) without the need to reopen Unity Editor.
+Tool created mainly to solve old problem with reloading [native plugins](https://docs.unity3d.com/Manual/NativePlugins.html) without the need to reopen Unity Editor.
 
 ## Features
 - Automaticly unloads native plugins after stopping game and loads them when needed
-- You can unload/reload them manually in playing or paused state
+- You can unload/reload them manually when game is playing
 - No code change is required (use usual `[DllImport]`)
 - Works on Windows, Linux and Mac
 - Ability to log native calls to file in order to diagnose crashes caused by them
@@ -22,34 +22,34 @@ Tool created mainly to solve old problem with unloading [native plugins](https:/
 5. One game object in the scene needs to have `DllManipulatorScript` on it. This script has `DontDestroayOnLoad(gameObject)` call, and deletes itself when dupliacate is found.
 
 ## Usage
-- Your plugin files must be at path specified in options. By default you add __ (two underscores) at the beginning of your dll file in Assets/Plugins folder.
-- By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity). You can change that in options and use provided attributes to specify it by yourself (these are in `UnityNativeTool`  namespace).
+- Your plugin files must be at path specified in options. By default, add __ (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
+- By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity which allows them to be unloaded). You can change that in options and use provided attributes to specify it by yourself (these are in `UnityNativeTool`  namespace).
 - If something is not working, first check out available options (and read their description), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 - Options are accessible via `DllManipulatorScript` editor or window.
 - Although presumably runs in builded game, it's intended to be used in editor.
 
 ## Limitations
-- Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported
-- `[MarshalAs]` attribute fields: `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` are not supported (due to Mono bug https://github.com/mono/mono/issues/12747)
-- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them)
-- Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about)
+- Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
+- `[MarshalAs]` attribute fields: `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` are not supported (due to Mono bug https://github.com/mono/mono/issues/12747).
+- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them).
+- Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about).
 
 ## Preformance
-Tested on old gaming laptop, Windows 10, 2 plugins with 10 functions each. Target function is simple addition of 2 floats and was called 1000000 times.
+Test case: 2 plugins with 10 functions each (simple addition of 2 floats), called 1000000 times.
 
 | Test case | Avarage time |
 | --- |:---:|
-| Without this tool | ~70ms |
+| Vanilla Unity | ~70ms |
+| Preloaded mode | ~105ms |
 | Lazy mode | ~135ms |
-| Preload mode | ~105ms |
 | With thread safety | ~300ms |
 
 ## Planned/possible features
-- Seamless native code debugging
+- Seamless managed/native code debugging
 - Improved thread safety and interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
 - Diffrent mocking methods (IL/metadata/assembly manipulation)
-- Unit tests
+- Unit tests (uhh, hard)
 
 ## References
 Some of the sources I based my code on (as you often say, this wouldn't be possible without):
