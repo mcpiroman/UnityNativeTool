@@ -290,7 +290,7 @@ namespace UnityNativeTool.Internal
                 il.Emit(OpCodes.Leave_S, retLabel);
                 il.BeginFinallyBlock();
                 il.Emit(OpCodes.Ldsfld, Field_NativeFunctionLoadLock.Value);
-                il.Emit(OpCodes.Call, Method_DynamicMethod_CreateDynMethod.Value);
+                il.Emit(OpCodes.Call, Method_Rwls_ExitReadLock.Value);
                 il.EndExceptionBlock();
                 il.MarkLabel(retLabel);
                 if (!returnsVoid)
