@@ -6,7 +6,7 @@ namespace UnityNativeTool.Internal
 {
     public class DllManipulatorWindowEditor : EditorWindow
     {
-        [MenuItem("UnityNativeTool/DLL Manipulator")]
+        [MenuItem("Window/Dll manipulator")]
         static void Init()
         {
             var window = GetWindow<DllManipulatorWindowEditor>();
