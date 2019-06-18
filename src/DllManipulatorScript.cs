@@ -24,14 +24,20 @@ namespace UnityNativeTool
             loadingMode = DllLoadingMode.Lazy,
             unixDlopenFlags = Unix_DlopenFlags.Lazy,
             threadSafe = false,
-            crashLogs = false,
+            enableCrashLogs = false,
             crashLogsDir = "{assets}/",
             crashLogsStackTrace = false,
             mockAllNativeFunctions = true,
+            onlyInEditor = true,
         };
 
         private void OnEnable()
         {
+#if !UNITY_EDITOR
+            if (Options.onlyInEditor)
+                return;
+#endif
+
             if (_singletonInstance != null)
             {
                 if (_singletonInstance != this)

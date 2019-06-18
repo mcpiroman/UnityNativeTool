@@ -109,8 +109,10 @@ namespace UnityNativeTool.Internal
 
         public static void ClearCrashLogs()
         {
-            if (Options.crashLogs)
+            if (Options.enableCrashLogs)
             {
+                if (Options.crashLogsDir == null)
+                    return;
                 var dir = ApplyDirectoryPathMacros(Options.crashLogsDir);
                 foreach (var filePath in Directory.GetFiles(dir))
                 {
@@ -254,7 +256,7 @@ namespace UnityNativeTool.Internal
                 il.Emit(OpCodes.Call, Method_LoadTargetFunction.Value);
             }
 
-            if (Options.crashLogs) //Log function invocation
+            if (Options.enableCrashLogs) //Log function invocation
             {
                 il.EmitFastI4Load(parameters.Length); //Generate array of arguments
                 il.Emit(OpCodes.Newarr, typeof(object));
@@ -626,10 +628,11 @@ namespace UnityNativeTool.Internal
         public DllLoadingMode loadingMode;
         public Unix_DlopenFlags unixDlopenFlags;
         public bool threadSafe;
-        public bool crashLogs;
+        public bool enableCrashLogs;
         public string crashLogsDir;
         public bool crashLogsStackTrace;
         public bool mockAllNativeFunctions;
+        public bool onlyInEditor;
     }
 
     public enum DllLoadingMode

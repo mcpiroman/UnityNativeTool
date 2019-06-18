@@ -16,6 +16,8 @@ namespace UnityNativeTool.Internal
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
         private static readonly GUIContent TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT = new GUIContent("Only executing assembly",
             "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
+        private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
+            "Whether to run only inside editor (which is recommended).");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
             "Choose from which assemblies to mock native functions");
         private static readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
@@ -223,6 +225,8 @@ namespace UnityNativeTool.Internal
                 EditorGUI.indentLevel = prevIndent1;
             }
 
+            options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
+
             options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
             
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
@@ -240,9 +244,9 @@ namespace UnityNativeTool.Internal
             options.threadSafe = EditorGUILayout.Toggle(THREAD_SAFE_GUI_CONTENT, options.threadSafe);
             GUI.enabled = guiEnabledStack.Pop();
 
-            options.crashLogs = EditorGUILayout.Toggle(CRASH_LOGS_GUI_CONTENT, options.crashLogs);
+            options.enableCrashLogs = EditorGUILayout.Toggle(CRASH_LOGS_GUI_CONTENT, options.enableCrashLogs);
 
-            if (options.crashLogs)
+            if (options.enableCrashLogs)
             {
                 var prevIndent = EditorGUI.indentLevel;
                 EditorGUI.indentLevel += 1;
