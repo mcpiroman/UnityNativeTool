@@ -1,8 +1,8 @@
 Tool created mainly to solve old problem with reloading [native plugins](https://docs.unity3d.com/Manual/NativePlugins.html) without the need to reopen Unity Editor.
 
-## Features
+## Features / overview
 - Automaticly unloads native plugins after stopping game and loads them when needed
-- You can unload/reload them manually when game is playing
+- You can unload/reload them manually, even when game is playing
 - No code change is required (use usual `[DllImport]`)
 - Works on Windows, Linux and Mac
 - Ability to log native calls to file in order to diagnose crashes caused by them
@@ -19,30 +19,29 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 4. Set execution order of script `UnityNativeTool.DllManipulatorScript` to be the lowest of all scripts in game (at least of scripts that use native functions), e.g -10000.  
    Edit > Project Settings > Script Execution Order
 
-5. One game object in the scene needs to have `DllManipulatorScript` on it. This script has `DontDestroayOnLoad(gameObject)` call, and deletes itself when dupliacate is found.
+5. One game object in the scene needs to have `DllManipulatorScript` on it. (This script calls `DontDestroayOnLoad(gameObject)` and deletes itself when dupliacate is found, so you don't have to worry about switching scenes).
 
 ## Usage
 - Your plugin files must be at path specified in options. By default, add __ (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
-- By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity which allows them to be unloaded). You can change that in options and use provided attributes to specify it by yourself (these are in `UnityNativeTool`  namespace).
-- If something is not working, first check out available options (and read their description), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
+- By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity, which allows them to be unloaded). You can change this in options and use provided attributes to specify that by yourself (these are in `UnityNativeTool`  namespace).
+- If something is not working, first check out available options (and read their descriptions), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 - Options are accessible via `DllManipulatorScript` editor or window.
-- Although presumably runs in builded game, it's intended to be used in editor.
+- Although this tool presumably works in builded game, it's intended to be used in editor.
 
 ## Limitations
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
-- `[MarshalAs]` attribute fields: `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` are not supported (due to Mono bug https://github.com/mono/mono/issues/12747).
-- `[DllImport]` properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them).
+- `[MarshalAs]` attribute's properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
+- `[DllImport]` attribute's properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them).
 - Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about).
 
 ## Preformance
-Test case: 2 plugins with 10 functions each (simple addition of 2 floats), called 1000000 times.
 
-| Test case | Avarage time |
+| Configuration | Relative call time |
 | --- |:---:|
-| Vanilla Unity | ~70ms |
-| Preloaded mode | ~105ms |
-| Lazy mode | ~135ms |
-| With thread safety | ~300ms |
+| Vanilla Unity | 100% |
+| Preloaded mode | ~150% |
+| Lazy mode | ~190% |
+| With thread safety | ~430% |
 
 ## Planned/possible features
 - Seamless managed/native code debugging
