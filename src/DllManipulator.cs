@@ -395,17 +395,10 @@ namespace UnityNativeTool.Internal
                 TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.AnsiClass | TypeAttributes.AutoClass, typeof(MulticastDelegate));
 
             //ufp = UnmanagedFunctionPointer
-            var ufpAttrType = typeof(UnmanagedFunctionPointerAttribute);
-            var ufpAttrCtor = ufpAttrType.GetConstructor(UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS);
             object[] ufpAttrCtorArgValues = { functionSignature.callingConvention };
-            FieldInfo[] ufpAttrNamedFields = {
-                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.BestFitMapping), BindingFlags.Public | BindingFlags.Instance),
-                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet), BindingFlags.Public | BindingFlags.Instance),
-                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.SetLastError), BindingFlags.Public | BindingFlags.Instance),
-                ufpAttrType.GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance),
-            };
-            object[] ufpAttrFieldValues = { functionSignature.bestFitMapping, functionSignature.charSet, functionSignature.setLastError, functionSignature.throwOnUnmappableChar };
-            var ufpAttrBuilder = new CustomAttributeBuilder(ufpAttrCtor, ufpAttrCtorArgValues, ufpAttrNamedFields, ufpAttrFieldValues);
+            FieldInfo[] ufpAttrNamedFields = { Field_Ufp_BestFitMapping.Value,    Field_Ufp_CharSet.Value,    Field_Ufp_SetLastError.Value,    Field_Ufp_ThrowOnUnmappableChar.Value   };
+            object[] ufpAttrFieldValues =    { functionSignature.bestFitMapping,  functionSignature.charSet,  functionSignature.setLastError,  functionSignature.throwOnUnmappableChar };
+            var ufpAttrBuilder = new CustomAttributeBuilder(Ctor_Ufp.Value, ufpAttrCtorArgValues, ufpAttrNamedFields, ufpAttrFieldValues);
             delBuilder.SetCustomAttribute(ufpAttrBuilder);
 
             var ctorBuilder = delBuilder.DefineConstructor(MethodAttributes.RTSpecialName | MethodAttributes.HideBySig | MethodAttributes.Public,

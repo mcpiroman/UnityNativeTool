@@ -65,7 +65,7 @@ namespace UnityNativeTool.Internal
         /// <param name="replacement">The replacement method</param>
         /// <returns>An error string</returns>
         ///
-        public static string DetourMethod(MethodBase original, MethodBase replacement)
+        public unsafe static string DetourMethod(MethodBase original, MethodBase replacement)
         {
             var originalCodeStart = GetMethodStart(original, out var exception);
             if (originalCodeStart == 0)

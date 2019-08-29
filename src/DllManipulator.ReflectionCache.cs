@@ -10,7 +10,6 @@ namespace UnityNativeTool.Internal
     public partial class DllManipulator
     {
         private static readonly Type[] DELEGATE_CTOR_PARAMETERS = { typeof(object), typeof(IntPtr) };
-        private static readonly Type[] UNMANAGED_FUNCTION_POINTER_ATTRIBUTE_CTOR_PARAMETERS = { typeof(CallingConvention) };
         private static readonly Type[] MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS = { typeof(UnmanagedType) };
 
 
@@ -40,6 +39,36 @@ namespace UnityNativeTool.Internal
         /// </summary>
         private static readonly Lazy<MethodInfo> Method_Rwls_ExitReadLock = new Lazy<MethodInfo>(
             () => typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.ExitReadLock), BindingFlags.Public | BindingFlags.Instance));
+
+        /// <summary>
+        /// UnmanagedFunctionPointerAttribute()
+        /// </summary>
+        private static readonly Lazy<ConstructorInfo> Ctor_Ufp = new Lazy<ConstructorInfo>(
+            () => typeof(UnmanagedFunctionPointerAttribute).GetConstructor(new[] { typeof(CallingConvention) } ));
+
+        /// <summary>
+        /// UnmanagedFunctionPointerAttribute.BestFitMapping
+        /// </summary>
+        private static readonly Lazy<FieldInfo> Field_Ufp_BestFitMapping = new Lazy<FieldInfo>(
+           () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.BestFitMapping), BindingFlags.Public | BindingFlags.Instance));
+
+        /// <summary>
+        /// UnmanagedFunctionPointerAttribute.CharSet
+        /// </summary>
+        private static readonly Lazy<FieldInfo> Field_Ufp_CharSet = new Lazy<FieldInfo>(
+           () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet), BindingFlags.Public | BindingFlags.Instance));
+
+        /// <summary>
+        /// UnmanagedFunctionPointerAttribute.SetLastError
+        /// </summary>
+        private static readonly Lazy<FieldInfo> Field_Ufp_SetLastError = new Lazy<FieldInfo>(
+           () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.SetLastError), BindingFlags.Public | BindingFlags.Instance));
+
+        /// <summary>
+        /// UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar
+        /// </summary>
+        private static readonly Lazy<FieldInfo> Field_Ufp_ThrowOnUnmappableChar = new Lazy<FieldInfo>(
+           () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
         /// DynamicMethod.CreateDynMethod()
