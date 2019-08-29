@@ -30,8 +30,9 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 
 ## Limitations
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
-- `[MarshalAs]` attribute's properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
-- `[DllImport]` attribute's properties `ExactSpelling` and `PreserveSig` are not supported (as if anyone uses them).
+- Properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` on `[MarshalAs]` attribute are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
+- Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be default for array types, so in trivial situations you shouldn't need to use it.
+- Properties `ExactSpelling` and `PreserveSig` on `[DllImport]` attribute are not supported (as if anyone uses them).
 - Threads that execute past `OnApplicationQuit` event are not-very-well handled (usualy not something to worry about).
 
 ## Preformance
@@ -43,7 +44,7 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 | Lazy mode | ~190% |
 | With thread safety | ~430% |
 
-## Planned/possible features
+## Planned / possible features
 - Seamless managed/native code debugging
 - Improved thread safety and interthread synchronization
 - Pausing on dll/function load error, allowing to fix depencency without restarting game
