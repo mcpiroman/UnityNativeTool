@@ -44,7 +44,7 @@ namespace UnityNativeTool.Internal
         /// <see cref=UnmanagedFunctionPointerAttribute"/>
         /// </summary>
         private static readonly Lazy<ConstructorInfo> Ctor_Ufp = new Lazy<ConstructorInfo>(
-            () => typeof(UnmanagedFunctionPointerAttribute).GetConstructor(new[] { typeof(CallingConvention) } ));
+            () => typeof(UnmanagedFunctionPointerAttribute).GetConstructor(new[] { typeof(CallingConvention) }));
 
         /// <summary>
         /// <see cref=UnmanagedFunctionPointerAttribute.BestFitMapping"/>
@@ -78,6 +78,36 @@ namespace UnityNativeTool.Internal
         /// </summary>
         private static readonly Lazy<MethodInfo> Method_DynamicMethod_CreateDynMethod = new Lazy<MethodInfo>(
             () => typeof(DynamicMethod).GetMethod("CreateDynMethod", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<FieldInfo> Field_IlGenerator_token_gen = new Lazy<FieldInfo>(
+            () => typeof(ILGenerator).GetField("token_gen", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<FieldInfo> Field_IlGenerator_cur_stack = new Lazy<FieldInfo>(
+            () => typeof(ILGenerator).GetField("cur_stack", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<MethodInfo> Method_IlGenerator_make_room = new Lazy<MethodInfo>(
+            () => typeof(ILGenerator).GetMethod("make_room", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<MethodInfo> Method_IlGenerator_ll_emit = new Lazy<MethodInfo>(
+           () => typeof(ILGenerator).GetMethod("ll_emit", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<MethodInfo> Method_IlGenerator_emit_int = new Lazy<MethodInfo>(
+            () => typeof(ILGenerator).GetMethod("emit_int", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<MethodInfo> Method_IlGenerator_add_token_fixup = new Lazy<MethodInfo>(
+            () => typeof(ILGenerator).GetMethod("add_token_fixup", BindingFlags.NonPublic | BindingFlags.Instance));
+
+        private static readonly Lazy<Type> Type_TokenGenerator = new Lazy<Type>(
+           () => typeof(ILGenerator).Assembly.GetType("System.Reflection.Emit.TokenGenerator", true, false));
+
+        /// <summary>
+        /// TokenGenerator.GetToken(MethodInfo, bool)
+        /// </summary>
+        private static readonly Lazy<MethodInfo> Method_TokenGenerator_GetToken = new Lazy<MethodInfo>(
+           () => Type_TokenGenerator.Value.GetMethod("GetToken", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(MethodInfo), typeof(bool) }, null));
+
+        private static readonly Lazy<Type> Type_MethodOnTypeBuilderInst = new Lazy<Type>(
+           () => typeof(ILGenerator).Assembly.GetType("System.Reflection.Emit.MethodOnTypeBuilderInst", true, false));
 
         #endregion
     }

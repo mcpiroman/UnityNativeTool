@@ -46,7 +46,7 @@ namespace UnityNativeTool.Internal
         public static void LoadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
-            try 
+            try
             {
                 foreach (var dll in _dlls.Values)
                 {
@@ -71,7 +71,7 @@ namespace UnityNativeTool.Internal
         public static void UnloadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
-            try 
+            try
             {
                 foreach (var dll in _dlls.Values)
                 {
@@ -282,7 +282,8 @@ namespace UnityNativeTool.Internal
             {
                 il.EmitFastArgLoad(i);
             }
-            il.Emit(OpCodes.Callvirt, delegateInvokeMethod); //Call native function
+            //il.Emit(OpCodes.Callvirt, delegateInvokeMethod); //Call native function
+            EmitNativeFunctionCall(il, delegateInvokeMethod, parameters.Length);
 
             if (Options.threadSafe) //End lock clause. Lock is being held during execution of native function, which is necessary since the DLL could be otherwise unloaded between acquire of delegate and call to delegate
             {
@@ -301,13 +302,56 @@ namespace UnityNativeTool.Internal
             il.Emit(OpCodes.Ret);
         }
 
+
+        /// <summary>
+        /// Used to bypass mono bug https://github.com/mono/mono/issues/16570
+        /// Based on https://github.com/mono/mono/blob/82e573122a55482bf6592f36f819597238628385/mcs/class/corlib/System.Reflection.Emit/ILGenerator.cs#L748
+        /// </summary>
+        private static void EmitNativeFunctionCall(ILGenerator il, MethodInfo func, int parameterCount)
+        {
+            var opcode = OpCodes.Callvirt;
+
+            var tokenGenerator = Field_IlGenerator_token_gen.Value.GetValue(il);
+            var h_GetToken = MethodInvoker.GetHandler(Method_TokenGenerator_GetToken.Value);
+            int token = (int)h_GetToken(tokenGenerator, new object[] { func, true });
+
+            var h_make_room = MethodInvoker.GetHandler(Method_IlGenerator_make_room.Value);
+            h_make_room(il, new object[] { 6 });
+
+            var h_ll_emit = MethodInvoker.GetHandler(Method_IlGenerator_ll_emit.Value);
+            h_ll_emit(il, new object[] { opcode });
+
+            var declaringType = func.DeclaringType;
+            if (declaringType != null)
+            {
+                if (Type_MethodOnTypeBuilderInst.Value.IsAssignableFrom(func.GetType()) || func is MethodBuilder)
+                {
+                    var h_add_token_fixup = MethodInvoker.GetHandler(Method_IlGenerator_add_token_fixup.Value);
+                    h_add_token_fixup(il, new object[] { func });
+                }
+            }
+
+            var h_emit_int = MethodInvoker.GetHandler(Method_IlGenerator_emit_int.Value);
+            h_emit_int(il, new object[] { token });
+
+            int stack = (int)Field_IlGenerator_cur_stack.Value.GetValue(il);
+
+            if (func.ReturnType != typeof(void))
+                stack++;
+
+            if (opcode.StackBehaviourPop == StackBehaviour.Varpop)
+                stack -= parameterCount;
+
+            Field_IlGenerator_cur_stack.Value.SetValue(il, stack);
+        }
+
         /// <summary>
         /// Prepares <paramref name="method"/> to be injected (aka. patched) into other method
         /// </summary>
         private static void PrepareDynamicMethod(DynamicMethod method)
         {
             //
-            // From https://github.com/pardeike/Harmony
+            // This method is logically copy of DynamicTools.PrepareDynamicMethod(DynamicMethod method) from https://github.com/pardeike/Harmony
             //
 
             if (Method_DynamicMethod_CreateDynMethod.Value != null)
@@ -317,7 +361,7 @@ namespace UnityNativeTool.Internal
             }
             else
             {
-                throw new Exception("DynamicMethod.CreateDynMethod() not found");
+                throw new Exception("DynamicMethod.CreateDynMethod not found");
             }
         }
 
@@ -374,7 +418,7 @@ namespace UnityNativeTool.Internal
             {
                 var param = functionSignature.parameters[i];
                 var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
-                foreach(var attr in param.customAttributes)
+                foreach (var attr in param.customAttributes)
                 {
                     paramBuilder.SetCustomAttribute(CreateMarshalingAttributeBuilderFromAttributeInstance(attr));
                 }
@@ -396,7 +440,7 @@ namespace UnityNativeTool.Internal
                     var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
                             .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
                     var fieldArgumentValues = new object[fields.Length];
-                    for(int i = 0; i < fields.Length; i++)
+                    for (int i = 0; i < fields.Length; i++)
                     {
                         fieldArgumentValues[i] = fields[i].GetValue(attribute);
                     }
@@ -463,7 +507,7 @@ namespace UnityNativeTool.Internal
             var filePath = Path.Combine(ApplyDirectoryPathMacros(Options.crashLogsDir), $"{CRASH_FILE_NAME_PREFIX}tid{threadId}.log");
             using (var file = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.Read)) //Truncates file if exists
             {
-                using(var writer = new StreamWriter(file))
+                using (var writer = new StreamWriter(file))
                 {
                     writer.Write("function: ");
                     writer.WriteLine(nativeFunction.identity.symbol);
@@ -517,7 +561,7 @@ namespace UnityNativeTool.Internal
                     }
 
                     writer.Write("thread: ");
-                    if(threadId == _unityMainThreadId)
+                    if (threadId == _unityMainThreadId)
                         writer.WriteLine("unity main thread");
                     else
                         writer.WriteLine($"{Thread.CurrentThread.Name}({threadId})");
