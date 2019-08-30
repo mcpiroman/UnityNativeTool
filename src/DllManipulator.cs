@@ -307,10 +307,9 @@ namespace UnityNativeTool.Internal
         private static void PrepareDynamicMethod(DynamicMethod method)
         {
             //
-            // This method is logically copy of DynamicTools.PrepareDynamicMethod(DynamicMethod method) from https://github.com/pardeike/Harmony
+            // From https://github.com/pardeike/Harmony
             //
 
-            //On mono, just call 'CreateDynMethod'
             if (Method_DynamicMethod_CreateDynMethod.Value != null)
             {
                 var h_CreateDynMethod = MethodInvoker.GetHandler(Method_DynamicMethod_CreateDynMethod.Value);
@@ -318,49 +317,7 @@ namespace UnityNativeTool.Internal
             }
             else
             {
-                //On all .NET Core versions, call 'RuntimeHelpers._CompileMethod' but with a different parameter:
-                var h__CompileMethod = MethodInvoker.GetHandler(Method_RuntimeHelpers__CompileMethod.Value);
-
-                var h_GetMethodDescriptor = MethodInvoker.GetHandler(Method_DynamicMethod_GetMethodDescriptor.Value);
-                var handle = (RuntimeMethodHandle)h_GetMethodDescriptor(method, new object[0]);
-
-                // 1) RuntimeHelpers._CompileMethod(handle.GetMethodInfo())
-                object runtimeMethodInfo = null;
-                if (Field_RuntimeMethodHandle_m_value.Value != null)
-                {
-                    runtimeMethodInfo = Field_RuntimeMethodHandle_m_value.Value.GetValue(handle);
-                }
-                else
-                {
-                    if (Method_RuntimeMethodHandle_GetMethodInfo.Value != null)
-                    {
-                        var h_GetMethodInfo = MethodInvoker.GetHandler(Method_RuntimeMethodHandle_GetMethodInfo.Value);
-                        runtimeMethodInfo = h_GetMethodInfo(handle, new object[0]);
-                    }
-                }
-
-                if (runtimeMethodInfo != null)
-                {
-                    try
-                    {
-                        //This can throw BadImageFormatException "An attempt was made to load a program with an incorrect format"
-                        h__CompileMethod(null, new object[] { runtimeMethodInfo });
-                        return;
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
-                else if (Method_RuntimeHelpers__CompileMethod.Value.GetParameters()[0].ParameterType.IsAssignableFrom(handle.Value.GetType()))
-                { 
-                    // 2) RuntimeHelpers._CompileMethod(handle.Value){
-                    h__CompileMethod(null, new object[] { handle.Value });
-                }
-                else if (Method_RuntimeHelpers__CompileMethod.Value.GetParameters()[0].ParameterType.IsAssignableFrom(handle.GetType()))
-                {
-                    // 3) RuntimeHelpers._CompileMethod(handle)
-                    h__CompileMethod(null, new object[] { handle });
-                }
+                throw new Exception("DynamicMethod.CreateDynMethod() not found");
             }
         }
 
@@ -396,8 +353,8 @@ namespace UnityNativeTool.Internal
 
             //ufp = UnmanagedFunctionPointer
             object[] ufpAttrCtorArgValues = { functionSignature.callingConvention };
-            FieldInfo[] ufpAttrNamedFields = { Field_Ufp_BestFitMapping.Value,    Field_Ufp_CharSet.Value,    Field_Ufp_SetLastError.Value,    Field_Ufp_ThrowOnUnmappableChar.Value   };
-            object[] ufpAttrFieldValues =    { functionSignature.bestFitMapping,  functionSignature.charSet,  functionSignature.setLastError,  functionSignature.throwOnUnmappableChar };
+            FieldInfo[] ufpAttrNamedFields = { Field_Ufpa_BestFitMapping.Value,  Field_Ufpa_CharSet.Value,  Field_Ufpa_SetLastError.Value,  Field_Ufpa_ThrowOnUnmappableChar.Value  };
+            object[] ufpAttrFieldValues =    { functionSignature.bestFitMapping, functionSignature.charSet, functionSignature.setLastError, functionSignature.throwOnUnmappableChar };
             var ufpAttrBuilder = new CustomAttributeBuilder(Ctor_Ufp.Value, ufpAttrCtorArgValues, ufpAttrNamedFields, ufpAttrFieldValues);
             delBuilder.SetCustomAttribute(ufpAttrBuilder);
 

@@ -41,78 +41,44 @@ namespace UnityNativeTool.Internal
             () => typeof(ReaderWriterLockSlim).GetMethod(nameof(ReaderWriterLockSlim.ExitReadLock), BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
-        /// UnmanagedFunctionPointerAttribute()
+        /// <see cref=UnmanagedFunctionPointerAttribute"/>
         /// </summary>
         private static readonly Lazy<ConstructorInfo> Ctor_Ufp = new Lazy<ConstructorInfo>(
             () => typeof(UnmanagedFunctionPointerAttribute).GetConstructor(new[] { typeof(CallingConvention) } ));
 
         /// <summary>
-        /// UnmanagedFunctionPointerAttribute.BestFitMapping
+        /// <see cref=UnmanagedFunctionPointerAttribute.BestFitMapping"/>
         /// </summary>
-        private static readonly Lazy<FieldInfo> Field_Ufp_BestFitMapping = new Lazy<FieldInfo>(
+        private static readonly Lazy<FieldInfo> Field_Ufpa_BestFitMapping = new Lazy<FieldInfo>(
            () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.BestFitMapping), BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
-        /// UnmanagedFunctionPointerAttribute.CharSet
+        /// <see cref=UnmanagedFunctionPointerAttribute.CharSet"/>
         /// </summary>
-        private static readonly Lazy<FieldInfo> Field_Ufp_CharSet = new Lazy<FieldInfo>(
+        private static readonly Lazy<FieldInfo> Field_Ufpa_CharSet = new Lazy<FieldInfo>(
            () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.CharSet), BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
-        /// UnmanagedFunctionPointerAttribute.SetLastError
+        /// <see cref=UnmanagedFunctionPointerAttribute.SetLastError"/>
         /// </summary>
-        private static readonly Lazy<FieldInfo> Field_Ufp_SetLastError = new Lazy<FieldInfo>(
+        private static readonly Lazy<FieldInfo> Field_Ufpa_SetLastError = new Lazy<FieldInfo>(
            () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.SetLastError), BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
-        /// UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar
+        /// <see cref=UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar"/>
         /// </summary>
-        private static readonly Lazy<FieldInfo> Field_Ufp_ThrowOnUnmappableChar = new Lazy<FieldInfo>(
+        private static readonly Lazy<FieldInfo> Field_Ufpa_ThrowOnUnmappableChar = new Lazy<FieldInfo>(
            () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance));
+
+
+        #region Mono specific
 
         /// <summary>
         /// DynamicMethod.CreateDynMethod()
         /// </summary>
-        /// <note>
-        /// Only on Mono
-        /// </note>
         private static readonly Lazy<MethodInfo> Method_DynamicMethod_CreateDynMethod = new Lazy<MethodInfo>(
             () => typeof(DynamicMethod).GetMethod("CreateDynMethod", BindingFlags.NonPublic | BindingFlags.Instance));
 
-        /// <summary>
-        /// DynamicMethod.GetMethodDescriptor()
-        /// </summary>
-        /// <note>
-        /// Only on .NET Core
-        /// </note>
-        private static readonly Lazy<MethodInfo> Method_DynamicMethod_GetMethodDescriptor = new Lazy<MethodInfo>(
-            () => typeof(DynamicMethod).GetMethod("GetMethodDescriptor", BindingFlags.NonPublic | BindingFlags.Instance));
-
-        /// <summary>
-        /// RuntimeHelpers._CompileMethod(..)
-        /// </summary>
-        /// <note>
-        /// Only on .NET Core
-        /// </note>
-        private static readonly Lazy<MethodInfo> Method_RuntimeHelpers__CompileMethod = new Lazy<MethodInfo>(
-            () => typeof(RuntimeHelpers).GetMethod("_CompileMethod", BindingFlags.NonPublic | BindingFlags.Static));
-
-        /// <summary>
-        /// RuntimeMethodHandle.m_value
-        /// </summary>
-        /// <note>
-        /// Only on .NET Core
-        /// </note>
-        private static readonly Lazy<FieldInfo> Field_RuntimeMethodHandle_m_value = new Lazy<FieldInfo>(
-            () => typeof(RuntimeMethodHandle).GetField("m_value", BindingFlags.NonPublic | BindingFlags.Instance));
-
-        /// <summary>
-        /// RuntimeMethodHandle.GetMethodInfo()
-        /// </summary>
-        /// <note>
-        /// Only on .NET Core
-        /// </note>
-        private static readonly Lazy<MethodInfo> Method_RuntimeMethodHandle_GetMethodInfo = new Lazy<MethodInfo>(
-            () => typeof(RuntimeMethodHandle).GetMethod("GetMethodInfo", BindingFlags.NonPublic | BindingFlags.Instance));
+        #endregion
     }
 }
