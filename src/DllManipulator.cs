@@ -18,7 +18,6 @@ namespace UnityNativeTool.Internal
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
         private const string CRASH_FILE_NAME_PREFIX = "unityNativeCrash_";
-        public static readonly Type[] SUPPORTED_PARAMATER_ATTRIBUTES = { typeof(MarshalAsAttribute), typeof(InAttribute), typeof(OutAttribute) };
 
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
@@ -211,7 +210,7 @@ namespace UnityNativeTool.Internal
                     dllImportAttr.BestFitMapping, dllImportAttr.CharSet, dllImportAttr.SetLastError, dllImportAttr.ThrowOnUnmappableChar);
                 if (!_delegateTypesForNativeFunctionSignatures.TryGetValue(nativeMethodSignature, out nativeFunction.delegateType))
                 {
-                    nativeFunction.delegateType = CreateDelegateTypeForNativeFunctionSignature(nativeMethodSignature);
+                    nativeFunction.delegateType = CreateDelegateTypeForNativeFunctionSignature(nativeMethodSignature, nativeMethod.Name);
                     _delegateTypesForNativeFunctionSignatures.Add(nativeMethodSignature, nativeFunction.delegateType);
                 }
                 var targetDelegateInvokeMethod = nativeFunction.delegateType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
@@ -339,7 +338,7 @@ namespace UnityNativeTool.Internal
             _nativeFunctions[_nativeFunctionsCount++] = nativeFunction;
         }
 
-        private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature functionSignature)
+        private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature functionSignature, string functionName)
         {
             if (_customDelegateTypesModule == null)
             {
@@ -368,7 +367,9 @@ namespace UnityNativeTool.Internal
             var invokeReturnParam = invokeBuilder.DefineParameter(0, functionSignature.returnParameter.parameterAttributes, null);
             foreach (var attr in functionSignature.returnParameter.customAttributes)
             {
-                invokeReturnParam.SetCustomAttribute(CreateMarshalingAttributeBuilderFromAttributeInstance(attr));
+                var attrBuilder = CreateMarshalingAttributeBuilderFromAttributeInstance(attr, functionName);
+                if(attrBuilder != null)
+                    invokeReturnParam.SetCustomAttribute(attrBuilder);
             }
             for (int i = 0; i < functionSignature.parameters.Length; i++)
             {
@@ -376,7 +377,9 @@ namespace UnityNativeTool.Internal
                 var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
                 foreach(var attr in param.customAttributes)
                 {
-                    paramBuilder.SetCustomAttribute(CreateMarshalingAttributeBuilderFromAttributeInstance(attr));
+                    var attrBuilder = CreateMarshalingAttributeBuilderFromAttributeInstance(attr, functionName);
+                    if (attrBuilder != null)
+                        paramBuilder.SetCustomAttribute(attrBuilder);
                 }
             }
 
@@ -384,17 +387,22 @@ namespace UnityNativeTool.Internal
             return delBuilder.CreateType();
         }
 
-        private static CustomAttributeBuilder CreateMarshalingAttributeBuilderFromAttributeInstance(Attribute attribute)
+        private static CustomAttributeBuilder CreateMarshalingAttributeBuilderFromAttributeInstance(Attribute attribute, string nativeFunctionName)
         {
             var attrType = attribute.GetType();
             switch (attribute)
             {
                 case MarshalAsAttribute marshalAsAttribute:
                 {
+                    if(marshalAsAttribute.Value == UnmanagedType.LPArray)
+                        throw new Exception("UnmanagedType.LPArray in [MarshalAs] attribute is not supported. See Limitations section");
+
                     var ctor = attrType.GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS);
                     object[] ctorArgs = { marshalAsAttribute.Value };
+
                     var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
-                            .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
+                        .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
+
                     var fieldArgumentValues = new object[fields.Length];
                     for(int i = 0; i < fields.Length; i++)
                     {
@@ -418,7 +426,10 @@ namespace UnityNativeTool.Internal
                         Array.Empty<FieldInfo>(), Array.Empty<object>());
                 }
                 default:
-                    throw new NotImplementedException($"Attribute {attrType} is not supported");
+                {
+                    Debug.LogWarning($"Skipping attribute [{attrType.Name}] in function {nativeFunctionName} as it is not supported. However, adding the support should be ease.");
+                    return null;
+                }
             }
         }
 

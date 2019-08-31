@@ -80,10 +80,7 @@ namespace UnityNativeTool.Internal
         {
             this.type = parameterInfo.ParameterType;
             this.parameterAttributes = parameterInfo.Attributes;
-            var attrs = parameterInfo.GetCustomAttributes(false).OfType<Attribute>(); //XXX: This is required way of obtaining attributes, since both CustomAttributeExtensions.GetCustomAttributes() and Attribute.GetCustomAttributes() return at most 1 attribute (mono bug?)
-            this.customAttributes = attrs
-                .Where(a => DllManipulator.SUPPORTED_PARAMATER_ATTRIBUTES.Contains(a.GetType()))
-                .ToArray();
+            this.customAttributes = parameterInfo.GetCustomAttributes(false).OfType<Attribute>().ToArray(); //XXX: This is required way of obtaining attributes, since both CustomAttributeExtensions.GetCustomAttributes() and Attribute.GetCustomAttributes() return at most 1 attribute (mono bug?)
         }
 
         public NativeFunctionParameterSignature(Type type, ParameterAttributes parameterAttributes, Attribute[] customAttributes)
