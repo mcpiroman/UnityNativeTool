@@ -80,7 +80,7 @@ namespace UnityNativeTool.Internal
         {
             this.type = parameterInfo.ParameterType;
             this.parameterAttributes = parameterInfo.Attributes;
-            this.customAttributes = parameterInfo.GetCustomAttributes(false).OfType<Attribute>().ToArray(); //XXX: This is required way of obtaining attributes, since both CustomAttributeExtensions.GetCustomAttributes() and Attribute.GetCustomAttributes() return at most 1 attribute (mono bug?)
+            this.customAttributes = parameterInfo.GetCustomAttributes(false).OfType<Attribute>().ToArray(); // Do it this way to bypass Mono bug, see https://github.com/mono/mono/issues/16613
         }
 
         public NativeFunctionParameterSignature(Type type, ParameterAttributes parameterAttributes, Attribute[] customAttributes)

@@ -394,14 +394,14 @@ namespace UnityNativeTool.Internal
             {
                 case MarshalAsAttribute marshalAsAttribute:
                 {
-                    if(marshalAsAttribute.Value == UnmanagedType.LPArray)
+                    if(marshalAsAttribute.Value == UnmanagedType.LPArray) // Used to bypass Mono bug, see https://github.com/mono/mono/issues/16570
                         throw new Exception("UnmanagedType.LPArray in [MarshalAs] attribute is not supported. See Limitations section");
 
                     var ctor = attrType.GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS);
                     object[] ctorArgs = { marshalAsAttribute.Value };
 
                     var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
-                        .Where(f => f.FieldType.IsValueType).ToArray(); //XXX: Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
+                        .Where(f => f.FieldType.IsValueType).ToArray(); // Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
 
                     var fieldArgumentValues = new object[fields.Length];
                     for(int i = 0; i < fields.Length; i++)
