@@ -397,28 +397,17 @@ namespace UnityNativeTool.Internal
                     if(marshalAsAttribute.Value == UnmanagedType.LPArray) // Used to bypass Mono bug, see https://github.com/mono/mono/issues/16570
                         throw new Exception("UnmanagedType.LPArray in [MarshalAs] attribute is not supported. See Limitations section");
 
-                    var ctor = attrType.GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS);
                     object[] ctorArgs = { marshalAsAttribute.Value };
 
                     var fields = attrType.GetFields(BindingFlags.Public | BindingFlags.Instance)
                         .Where(f => f.FieldType.IsValueType).ToArray(); // Used to bypass Mono bug, see https://github.com/mono/mono/issues/12747
-
-                    var fieldArgumentValues = new object[fields.Length];
-                    for(int i = 0; i < fields.Length; i++)
-                    {
-                        fieldArgumentValues[i] = fields[i].GetValue(attribute);
-                    }
+                    var fieldValues = fields.Select(f => f.GetValue(attribute)).ToArray();
 
                     //MarshalAsAttribute has no properties other than Value, which is passed in constructor, hence empty properties array
-                    return new CustomAttributeBuilder(ctor, ctorArgs, Array.Empty<PropertyInfo>(), Array.Empty<object>(),
-                        fields, fieldArgumentValues);
+                    return new CustomAttributeBuilder(Ctor_MarshalAsAttribute.Value, ctorArgs, Array.Empty<PropertyInfo>(), 
+                        Array.Empty<object>(), fields, fieldValues);
                 }
                 case InAttribute _:
-                {
-                    var ctor = attrType.GetConstructor(Type.EmptyTypes);
-                    return new CustomAttributeBuilder(ctor, Array.Empty<object>(), Array.Empty<PropertyInfo>(), Array.Empty<object>(),
-                        Array.Empty<FieldInfo>(), Array.Empty<object>());
-                }
                 case OutAttribute _:
                 {
                     var ctor = attrType.GetConstructor(Type.EmptyTypes);

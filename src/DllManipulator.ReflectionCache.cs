@@ -70,6 +70,12 @@ namespace UnityNativeTool.Internal
         private static readonly Lazy<FieldInfo> Field_Ufpa_ThrowOnUnmappableChar = new Lazy<FieldInfo>(
            () => typeof(UnmanagedFunctionPointerAttribute).GetField(nameof(UnmanagedFunctionPointerAttribute.ThrowOnUnmappableChar), BindingFlags.Public | BindingFlags.Instance));
 
+        /// <summary>
+        /// <see cref=MarshalAsAttribute"/>
+        /// </summary>
+        private static readonly Lazy<ConstructorInfo> Ctor_MarshalAsAttribute = new Lazy<ConstructorInfo>(
+            () => typeof(MarshalAsAttribute).GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS));
+
 
         #region Mono specific
 
