@@ -13,12 +13,13 @@ namespace UnityNativeTool
         public TimeSpan? InitializationTime { get; private set; } = null;
         public DllManipulatorOptions Options = new DllManipulatorOptions()
         {
+            dllPathPattern =
 #if UNITY_STANDALONE_WIN
-            dllPathPattern = "{assets}/Plugins/__{name}.dll",
+            "{assets}/Plugins/__{name}.dll",
 #elif UNITY_STANDALONE_LINUX
-            dllPathPattern = "{assets}/Plugins/__{name}.so",
+            "{assets}/Plugins/__{name}.so",
 #elif UNITY_STANDALONE_OSX
-            dllPathPattern = "{assets}/Plugins/__{name}.dylib",
+            "{assets}/Plugins/__{name}.dylib",
 #endif
             assemblyPaths = new string[0],
             loadingMode = DllLoadingMode.Lazy,
@@ -40,9 +41,7 @@ namespace UnityNativeTool
 
             if (_singletonInstance != null)
             {
-                if (_singletonInstance != this)
-                    Destroy(gameObject);
-
+                Destroy(gameObject);
                 return;
             }
             _singletonInstance = this;

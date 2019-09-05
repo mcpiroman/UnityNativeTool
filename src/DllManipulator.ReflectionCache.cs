@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -76,6 +77,14 @@ namespace UnityNativeTool.Internal
         private static readonly Lazy<ConstructorInfo> Ctor_MarshalAsAttribute = new Lazy<ConstructorInfo>(
             () => typeof(MarshalAsAttribute).GetConstructor(MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS));
 
+        private static readonly Lazy<Assembly> Assembly_UnityEditor = new Lazy<Assembly>(
+           () => AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "UnityEditor"));
+
+        /// <summary>
+        /// UnityEditor.EditorApplication.isPaused
+        /// </summary>
+        private static readonly Lazy<PropertyInfo> Prop_EditorApplication_isPaused = new Lazy<PropertyInfo>(
+           () => Assembly_UnityEditor.Value.GetType("UnityEditor.EditorApplication").GetProperty("isPaused", BindingFlags.Public | BindingFlags.Static));
 
         #region Mono specific
 

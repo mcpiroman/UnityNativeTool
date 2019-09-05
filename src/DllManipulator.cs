@@ -32,7 +32,6 @@ namespace UnityNativeTool.Internal
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
 
-
         public static void SetUnityContext(int unityMainThreadId, string assetsPath)
         {
             DllManipulator._unityMainThreadId = unityMainThreadId;
@@ -436,7 +435,12 @@ namespace UnityNativeTool.Internal
                 if (dll.handle == IntPtr.Zero)
                 {
                     dll.loadingError = true;
+                    Prop_EditorApplication_isPaused.Value.SetValue(null, true);
                     throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
+                }
+                else
+                {
+                    dll.loadingError = false;
                 }
             }
 
@@ -446,7 +450,12 @@ namespace UnityNativeTool.Internal
                 if (funcPtr == IntPtr.Zero)
                 {
                     dll.symbolError = true;
+                    Prop_EditorApplication_isPaused.Value.SetValue(null, true);
                     throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
+                }
+                else
+                {
+                    dll.symbolError = false;
                 }
 
                 nativeFunction.@delegate = Marshal.GetDelegateForFunctionPointer(funcPtr, nativeFunction.delegateType);
