@@ -84,7 +84,7 @@ namespace UnityNativeTool.Internal
         /// UnityEditor.EditorApplication.isPaused
         /// </summary>
         private static readonly Lazy<PropertyInfo> Prop_EditorApplication_isPaused = new Lazy<PropertyInfo>(
-           () => Assembly_UnityEditor.Value.GetType("UnityEditor.EditorApplication").GetProperty("isPaused", BindingFlags.Public | BindingFlags.Static));
+           () => Assembly_UnityEditor.Value?.GetType("UnityEditor.EditorApplication")?.GetProperty("isPaused", BindingFlags.Public | BindingFlags.Static));
 
         #region Mono specific
 

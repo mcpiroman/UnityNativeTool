@@ -435,7 +435,7 @@ namespace UnityNativeTool.Internal
                 if (dll.handle == IntPtr.Zero)
                 {
                     dll.loadingError = true;
-                    Prop_EditorApplication_isPaused.Value.SetValue(null, true);
+                    Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
                     throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
                 }
                 else
@@ -450,7 +450,7 @@ namespace UnityNativeTool.Internal
                 if (funcPtr == IntPtr.Zero)
                 {
                     dll.symbolError = true;
-                    Prop_EditorApplication_isPaused.Value.SetValue(null, true);
+                    Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
                     throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
                 }
                 else
