@@ -22,6 +22,7 @@ namespace UnityNativeTool.Internal
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
         private static string _assetsPath;
+        private static LinkedList<object> _antiGcRefHolder = new LinkedList<object>();
         private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
         private static ModuleBuilder _customDelegateTypesModule = null;
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
@@ -222,6 +223,9 @@ namespace UnityNativeTool.Internal
                 }
 
                 GenerateNativeFunctionMockBody(mockedDynamicMethod.GetILGenerator(), parameters, targetDelegateInvokeMethod, nativeFunctionIndex);
+
+                _antiGcRefHolder.AddLast(nativeFunction);
+                _antiGcRefHolder.AddLast(mockedDynamicMethod);
             }
 
             return mockedDynamicMethod;
