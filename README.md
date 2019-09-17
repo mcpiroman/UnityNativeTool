@@ -29,6 +29,7 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 - Although this tool presumably works in builded game, it's intended to be used in editor.
 
 ## Limitations
+- [Low level callbacks](https://docs.unity3d.com/Manual/NativePluginInterface.html) such as `UnityPluginLoad` are not supported (right now).
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
 - Properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` on `[MarshalAs]` attribute are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
 - Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be default for array types, so in trivial situations you shouldn't need to use it.
@@ -45,9 +46,9 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 | With thread safety | ~430% |
 
 ## Planned / possible features
+- [Low level callbacks](https://docs.unity3d.com/Manual/NativePluginInterface.html)
 - Seamless managed/native code debugging
 - Improved thread safety and interthread synchronization
-- Pausing on dll/function load error, allowing to fix depencency without restarting game
 - Diffrent mocking methods (IL/metadata/assembly manipulation)
 - Unit tests (uhh, hard)
 
