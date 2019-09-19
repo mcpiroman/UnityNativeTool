@@ -38,9 +38,9 @@ namespace UnityNativeTool.Internal
         public Type delegateType = null;
         public int index = -1;
 
-        public NativeFunction(NativeFunctionIdentity identity, NativeDll containingDll)
+        public NativeFunction(string symbol, NativeDll containingDll)
         {
-            this.identity = identity;
+            this.identity = new NativeFunctionIdentity(symbol, containingDll.name);
             this.containingDll = containingDll;
         }
     }

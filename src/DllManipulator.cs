@@ -53,7 +53,7 @@ namespace UnityNativeTool.Internal
                     {
                         foreach (var nativeFunction in dll.functions)
                         {
-                            LoadTargetFunction(nativeFunction);
+                            LoadTargetFunction(nativeFunction, false);
                         }
                     }
                 }
@@ -76,6 +76,8 @@ namespace UnityNativeTool.Internal
                 {
                     if (dll.handle != IntPtr.Zero)
                     {
+                        LowLevelPluginManager.OnBeforeDllUnload(dll);
+
                         bool success = SysUnloadDll(dll.handle);
                         dll.handle = IntPtr.Zero;
 
@@ -198,7 +200,7 @@ namespace UnityNativeTool.Internal
                     _dlls.Add(dllName, dll);
                 }
 
-                var nativeFunction = new NativeFunction(new NativeFunctionIdentity(nativeFunctionSymbol, dllName), dll);
+                var nativeFunction = new NativeFunction(nativeFunctionSymbol, dll);
                 dll.functions.Add(nativeFunction);
                 var nativeFunctionIndex = _nativeFunctionsCount;
                 AddNativeFunction(nativeFunction);
@@ -255,6 +257,7 @@ namespace UnityNativeTool.Internal
                     throw new InvalidOperationException("Thread safety with Lazy mode is not supported");
 
                 il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Ldc_I4_0); //ignoreLoadErrors -> false
                 il.Emit(OpCodes.Call, Method_LoadTargetFunction.Value);
             }
 
@@ -430,7 +433,7 @@ namespace UnityNativeTool.Internal
         /// To achieve thread safety calls to this method must be synchronized.
         /// Note: This method is being called by dynamically generated code. Be careful when changing its signature.
         /// </summary>
-        private static void LoadTargetFunction(NativeFunction nativeFunction)
+        internal static void LoadTargetFunction(NativeFunction nativeFunction, bool ignoreLoadError)
         {
             var dll = nativeFunction.containingDll;
             if (dll.handle == IntPtr.Zero)
@@ -438,13 +441,19 @@ namespace UnityNativeTool.Internal
                 dll.handle = SysLoadDll(dll.path);
                 if (dll.handle == IntPtr.Zero)
                 {
-                    dll.loadingError = true;
-                    Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
-                    throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
+                    if (!ignoreLoadError)
+                    {
+                        dll.loadingError = true;
+                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
+                    }
+
+                    return;
                 }
                 else
                 {
                     dll.loadingError = false;
+                    LowLevelPluginManager.OnDllLoaded(dll);
                 }
             }
 
@@ -453,9 +462,14 @@ namespace UnityNativeTool.Internal
                 IntPtr funcPtr = SysGetDllProcAddress(dll.handle, nativeFunction.identity.symbol);
                 if (funcPtr == IntPtr.Zero)
                 {
-                    dll.symbolError = true;
-                    Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
-                    throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
+                    if (!ignoreLoadError)
+                    {
+                        dll.symbolError = true;
+                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
+                    }
+
+                    return;
                 }
                 else
                 {

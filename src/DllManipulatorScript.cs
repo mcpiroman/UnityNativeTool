@@ -75,6 +75,8 @@ namespace UnityNativeTool
                 }
             }
 
+            LowLevelPluginManager.Initialize();
+
             if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload)
                 DllManipulator.LoadAll();
 
