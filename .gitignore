@@ -1,4 +1,4 @@
 *.meta
-src/LICENSE.txt
+LICENSE.txt
 *.sln
 .vs
