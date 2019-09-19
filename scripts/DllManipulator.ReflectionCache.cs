@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -14,8 +15,8 @@ namespace UnityNativeTool.Internal
         private static readonly Type[] MARSHAL_AS_ATTRIBUTE_CTOR_PARAMETERS = { typeof(UnmanagedType) };
 
 
-        private static readonly Lazy<FieldInfo> Field_NativeFunctions = new Lazy<FieldInfo>(
-            () => typeof(DllManipulator).GetField(nameof(_nativeFunctions), BindingFlags.NonPublic | BindingFlags.Static));
+        private static readonly Lazy<FieldInfo> Field_MockedNativeFunctions = new Lazy<FieldInfo>(
+            () => typeof(DllManipulator).GetField(nameof(_mockedNativeFunctions), BindingFlags.NonPublic | BindingFlags.Static));
 
         private static readonly Lazy<FieldInfo> Field_NativeFunctionDelegate = new Lazy<FieldInfo>(
             () => typeof(NativeFunction).GetField(nameof(NativeFunction.@delegate), BindingFlags.Public | BindingFlags.Instance));
@@ -28,6 +29,10 @@ namespace UnityNativeTool.Internal
 
         private static readonly Lazy<MethodInfo> Method_WriteNativeCrashLog = new Lazy<MethodInfo>(
             () => typeof(DllManipulator).GetMethod(nameof(WriteNativeCrashLog), BindingFlags.NonPublic | BindingFlags.Static));
+
+
+        private static readonly Lazy<MethodInfo> Method_List_NativeFunction_get_Item = new Lazy<MethodInfo>(
+            () => typeof(List<NativeFunction>).GetMethod("get_Item", BindingFlags.Public | BindingFlags.Instance));
 
         /// <summary>
         /// <see cref="ReaderWriterLockSlim.EnterReadLock()"/>

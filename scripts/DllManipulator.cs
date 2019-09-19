@@ -28,12 +28,11 @@ namespace UnityNativeTool.Internal
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
         private static readonly Dictionary<MethodInfo, DynamicMethod> _nativeFunctionMocks = new Dictionary<MethodInfo, DynamicMethod>();
         private static readonly Dictionary<NativeFunctionSignature, Type> _delegateTypesForNativeFunctionSignatures = new Dictionary<NativeFunctionSignature, Type>();
-        private static NativeFunction[] _nativeFunctions = null;
-        private static int _nativeFunctionsCount = 0;
+        private static List<NativeFunction> _mockedNativeFunctions = new List<NativeFunction>();
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
 
-        public static void SetUnityContext(int unityMainThreadId, string assetsPath)
+        internal static void SetUnityContext(int unityMainThreadId, string assetsPath)
         {
             DllManipulator._unityMainThreadId = unityMainThreadId;
             DllManipulator._assetsPath = assetsPath;
@@ -79,19 +78,10 @@ namespace UnityNativeTool.Internal
                         LowLevelPluginManager.OnBeforeDllUnload(dll);
 
                         bool success = SysUnloadDll(dll.handle);
-                        dll.handle = IntPtr.Zero;
-
-                        //Reset error states at unload
-                        dll.loadingError = false;
-                        dll.symbolError = false;
-
-                        foreach (var func in dll.functions)
-                        {
-                            func.@delegate = null;
-                        }
-
                         if (!success)
                             Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
+
+                        dll.ResetAsUnloaded();
                     }
                 }
             }
@@ -101,14 +91,13 @@ namespace UnityNativeTool.Internal
             }
         }
 
-        public static void ForgetAllDlls()
+        internal static void ForgetAllDlls()
         {
             _dlls.Clear();
-            _nativeFunctions = null;
-            _nativeFunctionsCount = 0;
+            _mockedNativeFunctions.Clear();
         }
 
-        public static void ClearCrashLogs()
+        internal static void ClearCrashLogs()
         {
             if (Options.enableCrashLogs)
             {
@@ -140,7 +129,7 @@ namespace UnityNativeTool.Internal
             return dllInfos;
         }
 
-        public static IEnumerable<MethodInfo> FindNativeFunctionsToMock(Assembly assembly)
+        internal static IEnumerable<MethodInfo> FindNativeFunctionsToMock(Assembly assembly)
         {
             var allTypes = assembly.GetTypes();
             foreach (var type in allTypes)
@@ -162,19 +151,19 @@ namespace UnityNativeTool.Internal
             }
         }
 
-        public static string ApplyDirectoryPathMacros(string path)
+        private static string ApplyDirectoryPathMacros(string path)
         {
             return path
                 .Replace(DLL_PATH_PATTERN_ASSETS_MACRO, _assetsPath)
                 .Replace(DLL_PATH_PATTERN_PROJECT_MACRO, _assetsPath + "/../");
         }
 
-        public static void MockNativeFunction(MethodInfo function)
+        internal static void MockNativeFunction(MethodInfo function)
         {
             var methodMock = GetNativeFunctionMockMethod(function);
-            Memory.MarkForNoInlining(function);
+            Detour.MarkForNoInlining(function);
             PrepareDynamicMethod(methodMock);
-            Memory.DetourMethod(function, methodMock);
+            Detour.DetourMethod(function, methodMock);
         }
 
         /// <summary>
@@ -202,9 +191,8 @@ namespace UnityNativeTool.Internal
 
                 var nativeFunction = new NativeFunction(nativeFunctionSymbol, dll);
                 dll.functions.Add(nativeFunction);
-                var nativeFunctionIndex = _nativeFunctionsCount;
-                AddNativeFunction(nativeFunction);
-                nativeFunction.index = nativeFunctionIndex;
+                var nativeFunctionIndex = _mockedNativeFunctions.Count;
+                _mockedNativeFunctions.Add(nativeFunction);
 
                 var parameters = nativeMethod.GetParameters();
                 var parameterTypes = parameters.Select(x => x.ParameterType).ToArray();
@@ -247,9 +235,9 @@ namespace UnityNativeTool.Internal
                 il.BeginExceptionBlock(); //Start lock clause: lock, try {  ...  }, finally { release }
             }
 
-            il.Emit(OpCodes.Ldsfld, Field_NativeFunctions.Value); //Load NativeFunction object
+            il.Emit(OpCodes.Ldsfld, Field_MockedNativeFunctions.Value); //Load NativeFunction object
             il.EmitFastI4Load(nativeFunctionIndex);
-            il.Emit(OpCodes.Ldelem_Ref);
+            il.Emit(OpCodes.Call, Method_List_NativeFunction_get_Item.Value);
 
             if (Options.loadingMode == DllLoadingMode.Lazy) //If lazy mode, load the function. Otherwise we assume it's already loaded
             {
@@ -276,9 +264,9 @@ namespace UnityNativeTool.Internal
                 }
                 il.Emit(OpCodes.Call, Method_WriteNativeCrashLog.Value);
 
-                il.Emit(OpCodes.Ldsfld, Field_NativeFunctions.Value); //Once again load native function, previous one was consumed by log method
+                il.Emit(OpCodes.Ldsfld, Field_MockedNativeFunctions.Value); //Once again load native function, previous one was consumed by log method
                 il.EmitFastI4Load(nativeFunctionIndex);
-                il.Emit(OpCodes.Ldelem_Ref);
+                il.Emit(OpCodes.Call, Method_List_NativeFunction_get_Item.Value);
             }
 
             il.Emit(OpCodes.Ldfld, Field_NativeFunctionDelegate.Value);
@@ -324,24 +312,6 @@ namespace UnityNativeTool.Internal
             {
                 throw new Exception("DynamicMethod.CreateDynMethod() not found");
             }
-        }
-
-        /// <summary>
-        /// Adds <paramref name="nativeFunction"/> to <see cref="_nativeFunctions"/> list
-        /// </summary>
-        private static void AddNativeFunction(NativeFunction nativeFunction)
-        {
-            if (_nativeFunctions == null)
-                _nativeFunctions = new NativeFunction[4];
-
-            if (_nativeFunctionsCount == _nativeFunctions.Length)
-            {
-                var newArray = new NativeFunction[_nativeFunctions.Length * 2];
-                Array.Copy(_nativeFunctions, newArray, _nativeFunctions.Length);
-                _nativeFunctions = newArray;
-            }
-
-            _nativeFunctions[_nativeFunctionsCount++] = nativeFunction;
         }
 
         private static Type CreateDelegateTypeForNativeFunctionSignature(NativeFunctionSignature functionSignature, string functionName)

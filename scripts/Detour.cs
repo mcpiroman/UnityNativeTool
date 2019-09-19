@@ -11,7 +11,7 @@ using System.Runtime.CompilerServices;
 namespace UnityNativeTool.Internal
 {
     /// <summary>A low level memory helper</summary>
-    internal static class Memory
+    internal static class Detour
     {
         static readonly HashSet<PlatformID> WindowsPlatformIDSet = new HashSet<PlatformID>
         {

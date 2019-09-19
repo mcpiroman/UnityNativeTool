@@ -34,9 +34,8 @@ namespace UnityNativeTool.Internal
     {
         public readonly NativeFunctionIdentity identity;
         public NativeDll containingDll;
-        public Delegate @delegate = null;
         public Type delegateType = null;
-        public int index = -1;
+        public Delegate @delegate = null;
 
         public NativeFunction(string symbol, NativeDll containingDll)
         {

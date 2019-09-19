@@ -17,6 +17,18 @@ namespace UnityNativeTool.Internal
             this.name = name;
             this.path = path;
         }
+
+        public void ResetAsUnloaded()
+        {
+            handle = IntPtr.Zero;
+            loadingError = false;
+            symbolError = false;
+
+            foreach (var func in functions)
+            {
+                func.@delegate = null;
+            }
+        }
     }
 
     public class NativeDllInfo
