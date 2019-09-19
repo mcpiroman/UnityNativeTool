@@ -23,12 +23,10 @@ namespace UnityNativeTool.Internal
                 if (_unityInterfacePtr == IntPtr.Zero)
                     throw new Exception($"{nameof(GetUnityInterfacesPtr)} returned null");
             }
-            catch(DllNotFoundException ex)
+            catch(DllNotFoundException)
             {
-                Debug.Log(ex);
+                Debug.LogWarning("Stub native plugin not found. Low level native callback won't fire. If you didn't install this tool via Unity package, you'll need to build it manually ");
             }
-
-            Debug.Log("Initialize()");
         }
 
         public static void OnDllLoaded(NativeDll dll)
@@ -44,10 +42,7 @@ namespace UnityNativeTool.Internal
 
             DllManipulator.LoadTargetFunction(unityPluginLoadFunc, true);
             if (unityPluginLoadFunc.@delegate != null)
-            {
                 ((UnityPluginLoadDel)unityPluginLoadFunc.@delegate)(_unityInterfacePtr);
-                Debug.Log("Called UnityPluginLoad");
-            }
         }
 
         public static void OnBeforeDllUnload(NativeDll dll)
@@ -58,9 +53,7 @@ namespace UnityNativeTool.Internal
 
             DllManipulator.LoadTargetFunction(unityPluginUnloadFunc, true);
             if (unityPluginUnloadFunc.@delegate != null)
-            { 
-                Debug.Log("Called UnityPluginUnload");
-            }
+                ((UnityPluginUnloadDel)unityPluginUnloadFunc.@delegate)();
         }
 
         delegate void UnityPluginLoadDel(IntPtr unityInterfaces);
