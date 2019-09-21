@@ -1,4 +1,5 @@
 *.meta
-LICENSE.txt
+scripts/LICENSE.txt
 *.sln
 .vs
+stubLluiPlugin
