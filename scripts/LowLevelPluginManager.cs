@@ -25,14 +25,12 @@ namespace UnityNativeTool.Internal
             }
             catch(DllNotFoundException)
             {
-                Debug.LogWarning("Stub native plugin not found. Low level native callback won't fire. If you didn't install this tool via Unity package, you'll need to build it manually ");
+                Debug.LogWarning("StubLluiPlugin not found. UnityPluginLoad and UnityPluginUnload callbacks won't fire. You may comment out this warning if you don't care about these callbacks.");
             }
         }
 
         public static void OnDllLoaded(NativeDll dll)
         {
-            Debug.Log("OnDllLoaded() " + _unityInterfacePtr);
-
             if (_unityInterfacePtr == IntPtr.Zero)
                 return;
 
