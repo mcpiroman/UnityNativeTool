@@ -54,8 +54,8 @@ namespace UnityNativeTool.Internal
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
-        private DateTime _lastGetAssemblyCall;
-        private Assembly[] _allAssembliesCache = null;
+        private string[] _allKnownAssemblies = null;
+        private DateTime _lastKnownAssembliesRefreshTime;
 
         public DllManipulatorEditor()
         {
@@ -187,16 +187,31 @@ namespace UnityNativeTool.Internal
                 var prevIndent1 = EditorGUI.indentLevel;
                 EditorGUI.indentLevel++;
 
-                if (_allAssembliesCache == null || _lastGetAssemblyCall + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
+                if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
                 {
-                    _allAssembliesCache = CompilationPipeline.GetAssemblies();
-                    _lastGetAssemblyCall = DateTime.Now;
+                    var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
+                        .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
+
+                    var editorCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor)
+                       .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
+
+                    var assemblyAssets = Resources.FindObjectsOfTypeAll<PluginImporter>()
+                        .Where(p => !p.isNativePlugin)
+                        .Select(p => PathUtils.NormallizeUnityAssemblyPath(p.assetPath));
+
+                    string[] defaultAssemblyPrefixes = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
+                    
+                    _allKnownAssemblies = playerCompiledAssemblies
+                        .Concat(assemblyAssets)
+                        .Concat(editorCompiledAssemblies)
+                        .OrderBy(path => Array.FindIndex(defaultAssemblyPrefixes, p => path.Substring(path.LastIndexOf('/') + 1).StartsWith(p)))
+                        .ToArray();
+                    _lastKnownAssembliesRefreshTime = DateTime.Now;
                 }
-                var allAssemblies = _allAssembliesCache;
 
                 if (options.assemblyPaths.Length == 0)
                 {
-                    var first = GetFirstAssemblyPath(allAssemblies);
+                    var first = GetFirstAssemblyToList(_allKnownAssemblies);
                     if(first != null)
                         options.assemblyPaths = new[] { first };
                 }
@@ -207,17 +222,19 @@ namespace UnityNativeTool.Internal
                     var prevIndent2 = EditorGUI.indentLevel;
                     EditorGUI.indentLevel++;
 
-                    var selectedAssemblyPaths = options.assemblyPaths.Where(p => allAssemblies.Any(a => PathUtils.DllPathsEquals(a.outputPath, p)));
-                    var selectedAssemblies = selectedAssemblyPaths.Select(p => allAssemblies.First(a => PathUtils.DllPathsEquals(a.outputPath, p))).ToList();
-                    var notSelectedAssemblies = allAssemblies.Except(selectedAssemblies).ToArray();
+                    var selectedAssemblies = options.assemblyPaths.Where(p => _allKnownAssemblies.Any(a => PathUtils.DllPathsEqual(a, p))).ToList();
+                    var notSelectedAssemblies = _allKnownAssemblies.Except(selectedAssemblies).ToArray();
                     DrawList(selectedAssemblies, i =>
                     {
-                        var values = new List<string> { selectedAssemblies[i].name };
-                        values.AddRange(notSelectedAssemblies.Select(a => a.name));
-                        var selectedIndex = EditorGUILayout.Popup(0, values.ToArray());
+                        var values = new[] { selectedAssemblies[i] }
+                            .Concat(notSelectedAssemblies)
+                            .Select(a => a.Substring(a.LastIndexOf('/') + 1))
+                            .ToArray();
+
+                        var selectedIndex = EditorGUILayout.Popup(0, values);
                         return selectedIndex == 0 ? selectedAssemblies[i] : notSelectedAssemblies[selectedIndex - 1];
                     }, notSelectedAssemblies.Length > 0, () => notSelectedAssemblies[0]);
-                    options.assemblyPaths = selectedAssemblies.Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath)).ToArray();
+                    options.assemblyPaths = selectedAssemblies.ToArray();
 
                     EditorGUI.indentLevel = prevIndent2;
                 }
@@ -281,20 +298,17 @@ namespace UnityNativeTool.Internal
             GUILayout.BeginHorizontal();
             GUILayout.Space(EditorGUI.indentLevel * 15);
             var prevGuiEnabled = GUI.enabled;
-            GUI.enabled = canAddNewElement;
+            GUI.enabled = prevGuiEnabled && canAddNewElement;
             if (GUILayout.Button("Add", GUILayout.Width(40)))
                 elements.Add(getNewElement());
             GUI.enabled = prevGuiEnabled;
             GUILayout.EndHorizontal();
         }
 
-        static string GetFirstAssemblyPath(Assembly[] allAssemblies)
+        static string GetFirstAssemblyToList(string[] allAssemblies)
         {
-            var path = allAssemblies.FirstOrDefault(a => PathUtils.DllPathsEquals(a.outputPath, typeof(DllManipulator).Assembly.Location))?.outputPath 
-                ?? allAssemblies.FirstOrDefault()?.outputPath;
-            if (path == null)
-                return null;
-            return PathUtils.NormallizeUnityAssemblyPath(path);
+            return allAssemblies.FirstOrDefault(a => PathUtils.DllPathsEqual(a, typeof(DllManipulator).Assembly.Location)) 
+                ?? allAssemblies.FirstOrDefault();
         }
     }
 }

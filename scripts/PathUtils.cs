@@ -9,7 +9,7 @@ namespace UnityNativeTool.Internal
         /// </summary>
         /// <param name="outputPath">Value returned from <see cref="UnityEditor.Compilation.Assembly.outputPath"/></param>
         /// <param name="location">Value returned from <see cref="System.Reflection.Assembly.Location"/></param>
-        public static bool DllPathsEquals(string outputPath, string location)
+        public static bool DllPathsEqual(string outputPath, string location)
         {
             return NormallizeUnityAssemblyPath(outputPath) == NormallizeSystemAssemblyPath(location);
         }
