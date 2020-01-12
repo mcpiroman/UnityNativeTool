@@ -48,6 +48,9 @@ namespace UnityNativeTool
             DontDestroyOnLoad(gameObject);
 
             var timer = System.Diagnostics.Stopwatch.StartNew();
+
+            LowLevelPluginManager.ResetStubPlugin();
+
             DllManipulator.SetUnityContext(Thread.CurrentThread.ManagedThreadId, Application.dataPath);
             DllManipulator.Options = Options;
 
@@ -75,8 +78,6 @@ namespace UnityNativeTool
                 }
             }
 
-            LowLevelPluginManager.Initialize();
-
             if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload)
                 DllManipulator.LoadAll();
 
@@ -94,7 +95,7 @@ namespace UnityNativeTool
 
                 DllManipulator.UnloadAll();
                 DllManipulator.ForgetAllDlls();
-                DllManipulator.ClearCrashLogs();
+                DllManipulator.ClearCrashLogs();         
             }
         }
     }
