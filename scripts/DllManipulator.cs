@@ -76,12 +76,14 @@ namespace UnityNativeTool.Internal
                     if (dll.handle != IntPtr.Zero)
                     {
                         LowLevelPluginManager.OnBeforeDllUnload(dll);
+                        DllCallbacks.OnBeforeDllUnload(dll.name);
 
                         bool success = SysUnloadDll(dll.handle);
                         if (!success)
                             Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
 
                         dll.ResetAsUnloaded();
+                        DllCallbacks.OnAfterDllUnload(dll.name);
                     }
                 }
             }
@@ -424,6 +426,7 @@ namespace UnityNativeTool.Internal
                 {
                     dll.loadingError = false;
                     LowLevelPluginManager.OnDllLoaded(dll);
+                    DllCallbacks.OnDllLoaded(dll.name);
                 }
             }
 
