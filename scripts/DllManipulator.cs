@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.IO;
 using UnityEngine;
+using UnityEditor.ShortcutManagement;
 
 namespace UnityNativeTool.Internal
 {
@@ -41,6 +42,11 @@ namespace UnityNativeTool.Internal
         /// <summary>
         /// Loads all DLLs and functions for mocked methods
         /// </summary>
+        #if UNITY_2019_1_OR_NEWER
+        [Shortcut("Tools/Load All Dlls", KeyCode.D, ShortcutModifiers.Alt | ShortcutModifiers.Shift)]
+        #else
+        [MenuItem("Tools/Load All Dlls #&d")]
+        #endif
         public static void LoadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
@@ -66,6 +72,11 @@ namespace UnityNativeTool.Internal
         /// <summary>
         /// Unloads all DLLs and functions currently loaded
         /// </summary>
+        #if UNITY_2019_1_OR_NEWER
+        [Shortcut("Tools/Unload All Dlls", KeyCode.D, ShortcutModifiers.Alt)]
+        #else
+        [MenuItem("Tools/Unload All Dlls &d")]
+        #endif
         public static void UnloadAll()
         {
             _nativeFunctionLoadLock.EnterWriteLock(); //Locking with no thread safety option is not required but is ok (this function isn't performance critical)
