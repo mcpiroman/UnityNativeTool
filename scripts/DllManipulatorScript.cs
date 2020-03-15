@@ -3,10 +3,12 @@ using System.Reflection;
 using System.Threading;
 using System.Linq;
 using UnityEngine;
+using UnityEditor;
 using UnityNativeTool.Internal;
 
 namespace UnityNativeTool
 {
+    [ExecuteInEditMode]
     public class DllManipulatorScript : MonoBehaviour
     {
         private static DllManipulatorScript _singletonInstance = null;
@@ -41,11 +43,15 @@ namespace UnityNativeTool
 
             if (_singletonInstance != null)
             {
-                Destroy(gameObject);
+                if (EditorApplication.isPlaying)
+                    Destroy(gameObject);
+                else
+                    enabled = false;
                 return;
             }
             _singletonInstance = this;
-            DontDestroyOnLoad(gameObject);
+            if(EditorApplication.isPlaying)
+                DontDestroyOnLoad(gameObject);
 
             var timer = System.Diagnostics.Stopwatch.StartNew();
 
@@ -85,7 +91,7 @@ namespace UnityNativeTool
             InitializationTime = timer.Elapsed;
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             if (_singletonInstance == this)
             {
@@ -96,6 +102,7 @@ namespace UnityNativeTool
                 DllManipulator.UnloadAll();
                 DllManipulator.ForgetAllDlls();
                 DllManipulator.ClearCrashLogs();         
+                _singletonInstance = null;
             }
         }
     }
