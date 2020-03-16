@@ -3,7 +3,9 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Compilation;
+#if UNITY_2019_1_OR_NEWER
 using UnityEditor.ShortcutManagement;
+#endif
 using System.IO;
 using System;
 
