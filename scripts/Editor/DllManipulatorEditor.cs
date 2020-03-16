@@ -322,6 +322,8 @@ namespace UnityNativeTool.Internal
         public static void LoadAllShortcut()
         {
             DllManipulator.LoadAll();
+            RepaintAll();
+            DllManipulatorWindowEditor.RepaintAll();
         }
 
         #if UNITY_2019_1_OR_NEWER
@@ -332,6 +334,16 @@ namespace UnityNativeTool.Internal
         public static void UnloadAll()
         {
             DllManipulator.UnloadAll();
+            RepaintAll();
+            DllManipulatorWindowEditor.RepaintAll();
+        }
+
+        public static void RepaintAll()
+        {
+            var editors = Resources.FindObjectsOfTypeAll<DllManipulatorEditor>();
+            if(editors == null) return;
+            foreach (var editor in editors)
+                editor.Repaint();
         }
     }
 }
