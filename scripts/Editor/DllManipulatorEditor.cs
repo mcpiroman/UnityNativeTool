@@ -3,6 +3,9 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Compilation;
+#if UNITY_2019_1_OR_NEWER
+using UnityEditor.ShortcutManagement;
+#endif
 using System.IO;
 using System;
 
@@ -309,6 +312,26 @@ namespace UnityNativeTool.Internal
         {
             return allAssemblies.FirstOrDefault(a => PathUtils.DllPathsEqual(a, typeof(DllManipulator).Assembly.Location)) 
                 ?? allAssemblies.FirstOrDefault();
+        }
+
+        #if UNITY_2019_1_OR_NEWER
+        [Shortcut("Tools/Load All Dlls", KeyCode.D, ShortcutModifiers.Alt | ShortcutModifiers.Shift)]
+        #else
+        [MenuItem("Tools/Load All Dlls #&d")]
+        #endif
+        public static void LoadAllShortcut()
+        {
+            DllManipulator.LoadAll();
+        }
+
+        #if UNITY_2019_1_OR_NEWER
+        [Shortcut("Tools/Unload All Dlls", KeyCode.D, ShortcutModifiers.Alt)]
+        #else
+        [MenuItem("Tools/Unload All Dlls &d")]
+        #endif
+        public static void UnloadAll()
+        {
+            DllManipulator.UnloadAll();
         }
     }
 }
