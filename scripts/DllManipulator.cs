@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.IO;
 using UnityEngine;
@@ -22,7 +21,7 @@ namespace UnityNativeTool.Internal
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
         private static string _assetsPath;
-        private static LinkedList<object> _antiGcRefHolder = new LinkedList<object>();
+        private static readonly LinkedList<object> _antiGcRefHolder = new LinkedList<object>();
         private static readonly ReaderWriterLockSlim _nativeFunctionLoadLock = new ReaderWriterLockSlim();
         private static ModuleBuilder _customDelegateTypesModule = null;
         private static readonly Dictionary<string, NativeDll> _dlls = new Dictionary<string, NativeDll>();
@@ -32,10 +31,59 @@ namespace UnityNativeTool.Internal
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
 
-        internal static void SetUnityContext(int unityMainThreadId, string assetsPath)
+        /// <summary>
+        /// Initialization.
+        /// Finds and mocks relevant native function declarations.
+        /// If <see cref="DllLoadingMode.Preload"/> option is specified, loads all DLLs specified by these functions.
+        /// Options have to be configured before calling this method.
+        /// </summary>
+        internal static void Initialize(int unityMainThreadId, string assetsPath)
         {
-            DllManipulator._unityMainThreadId = unityMainThreadId;
-            DllManipulator._assetsPath = assetsPath;
+            _unityMainThreadId = unityMainThreadId;
+            _assetsPath = assetsPath;
+
+            LowLevelPluginManager.ResetStubPlugin();
+
+            Assembly[] assemblies;
+            if (Options.assemblyPaths.Length == 0)
+            {
+                assemblies = new[] { Assembly.GetExecutingAssembly() };
+            }
+            else
+            {
+                var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == PathUtils.NormallizeSystemAssemblyPath(a.Location))).ToArray();
+                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => PathUtils.NormallizeSystemAssemblyPath(a.Location)));
+                foreach (var assemblyPath in missingAssemblies)
+                {
+                    Debug.LogError($"Could not find assembly at path {assemblyPath}");
+                }
+            }
+
+            foreach (var assembly in assemblies)
+            {
+                var allTypes = assembly.GetTypes();
+                foreach (var type in allTypes)
+                {
+                    foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                    {
+                        if (method.IsDefined(typeof(DllImportAttribute)))
+                        {
+                            if (method.IsDefined(typeof(DisableMockingAttribute)))
+                                continue;
+
+                            if (method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
+                                continue;
+
+                            if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
+                                MockNativeFunction(method);
+                        }
+                    }
+                }
+            }
+
+            if (Options.loadingMode == DllLoadingMode.Preload)
+                LoadAll();
         }
 
         /// <summary>
@@ -129,28 +177,6 @@ namespace UnityNativeTool.Internal
             return dllInfos;
         }
 
-        internal static IEnumerable<MethodInfo> FindNativeFunctionsToMock(Assembly assembly)
-        {
-            var allTypes = assembly.GetTypes();
-            foreach (var type in allTypes)
-            {
-                foreach (var method in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
-                {
-                    if (method.IsDefined(typeof(DllImportAttribute)))
-                    {
-                        if (method.IsDefined(typeof(DisableMockingAttribute)))
-                            continue;
-
-                        if (method.DeclaringType.IsDefined(typeof(DisableMockingAttribute)))
-                            continue;
-
-                        if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
-                            yield return method;
-                    }
-                }
-            }
-        }
-
         private static string ApplyDirectoryPathMacros(string path)
         {
             return path
@@ -158,7 +184,7 @@ namespace UnityNativeTool.Internal
                 .Replace(DLL_PATH_PATTERN_PROJECT_MACRO, _assetsPath + "/../");
         }
 
-        internal static void MockNativeFunction(MethodInfo function)
+        private static void MockNativeFunction(MethodInfo function)
         {
             var methodMock = GetNativeFunctionMockMethod(function);
             Detour.MarkForNoInlining(function);
@@ -343,7 +369,7 @@ namespace UnityNativeTool.Internal
             var invokeReturnParam = invokeBuilder.DefineParameter(0, functionSignature.returnParameter.parameterAttributes, null);
             foreach (var attr in functionSignature.returnParameter.customAttributes)
             {
-                var attrBuilder = CreateMarshalingAttributeBuilderFromAttributeInstance(attr, functionName);
+                var attrBuilder = CreateAttributeBuilderFromAttributeInstance(attr, functionName);
                 if(attrBuilder != null)
                     invokeReturnParam.SetCustomAttribute(attrBuilder);
             }
@@ -353,7 +379,7 @@ namespace UnityNativeTool.Internal
                 var paramBuilder = invokeBuilder.DefineParameter(i + 1, param.parameterAttributes, null);
                 foreach(var attr in param.customAttributes)
                 {
-                    var attrBuilder = CreateMarshalingAttributeBuilderFromAttributeInstance(attr, functionName);
+                    var attrBuilder = CreateAttributeBuilderFromAttributeInstance(attr, functionName);
                     if (attrBuilder != null)
                         paramBuilder.SetCustomAttribute(attrBuilder);
                 }
@@ -363,7 +389,7 @@ namespace UnityNativeTool.Internal
             return delBuilder.CreateType();
         }
 
-        private static CustomAttributeBuilder CreateMarshalingAttributeBuilderFromAttributeInstance(Attribute attribute, string nativeFunctionName)
+        private static CustomAttributeBuilder CreateAttributeBuilderFromAttributeInstance(Attribute attribute, string nativeFunctionName)
         {
             var attrType = attribute.GetType();
             switch (attribute)
@@ -371,7 +397,7 @@ namespace UnityNativeTool.Internal
                 case MarshalAsAttribute marshalAsAttribute:
                 {
                     if(marshalAsAttribute.Value == UnmanagedType.LPArray) // Used to bypass Mono bug, see https://github.com/mono/mono/issues/16570
-                        throw new Exception("UnmanagedType.LPArray in [MarshalAs] attribute is not supported. See Limitations section");
+                        throw new Exception("UnmanagedType.LPArray in [MarshalAs] attribute is not supported. See Limitations section.");
 
                     object[] ctorArgs = { marshalAsAttribute.Value };
 
@@ -392,7 +418,7 @@ namespace UnityNativeTool.Internal
                 }
                 default:
                 {
-                    Debug.LogWarning($"Skipping attribute [{attrType.Name}] in function {nativeFunctionName} as it is not supported. However, adding the support should be ease.");
+                    Debug.LogWarning($"Skipping copy of attribute [{attrType.Name}] in function {nativeFunctionName} as it is not supported. However, if it is desirable to include it, adding such support should be easy. See the method that throws this exception.");
                     return null;
                 }
             }
@@ -538,9 +564,9 @@ namespace UnityNativeTool.Internal
 #if UNITY_STANDALONE_WIN
             return PInvokes_Windows.LoadLibrary(filepath);
 #elif UNITY_STANDALONE_LINUX
-            return PInvokes_Linux.dlopen(filepath, (int)Options.unixDlopenFlags);
+            return PInvokes_Linux.dlopen(filepath, (int)Options.posixDlopenFlags);
 #elif UNITY_STANDALONE_OSX
-            return PInvokes_Osx.dlopen(filepath, (int)Options.unixDlopenFlags);
+            return PInvokes_Osx.dlopen(filepath, (int)Options.posixDlopenFlags);
 #endif
         }
 
@@ -573,7 +599,7 @@ namespace UnityNativeTool.Internal
         public string dllPathPattern;
         public string[] assemblyPaths; //empty means only executing assembly
         public DllLoadingMode loadingMode;
-        public Unix_DlopenFlags unixDlopenFlags;
+        public PosixDlopenFlags posixDlopenFlags;
         public bool threadSafe;
         public bool enableCrashLogs;
         public string crashLogsDir;

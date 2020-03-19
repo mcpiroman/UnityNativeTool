@@ -32,7 +32,7 @@ namespace UnityNativeTool.Internal
             "Specifies how DLLs and functions will be loaded.\n\n" +
             "Lazy - All DLLs and functions are loaded each time they are called, if not loaded yet. This allows them to be easily unloaded and loaded within game execution.\n\n" +
             "Preloaded - Slight performance benefit over Lazy mode. All declared DLLs and functions are loaded at startup (OnEnable()) and not reloaded later. Mid-execution it's not safe to unload them unless game is paused.");
-        private static readonly GUIContent UNIX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
+        private static readonly GUIContent POSIX_DLOPEN_FLAGS_GUI_CONTENT = new GUIContent("dlopen flags",
             "Flags used in dlopen() P/Invoke on Linux and OSX systems. Has minor meaning unless library is large.");
         private static readonly GUIContent THREAD_SAFE_GUI_CONTENT = new GUIContent("Thread safe",
             "Ensures synchronization required for native calls from any other than Unity main thread. Overhead might be few times higher, with uncontended locks.\n\n" +
@@ -252,7 +252,7 @@ namespace UnityNativeTool.Internal
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
 
 #if UNITY_STANDALONE_LINUX || UNITY_STANDALONE_OSX
-            options.unixDlopenFlags = (Unix_DlopenFlags)EditorGUILayout.EnumPopup(UNIX_DLOPEN_FLAGS_GUI_CONTENT, options.unixDlopenFlags);
+            options.posixDlopenFlags = (PosixDlopenFlags)EditorGUILayout.EnumPopup(POSIX_DLOPEN_FLAGS_GUI_CONTENT, options.posixDlopenFlags);
 #endif
 
             guiEnabledStack.Push(GUI.enabled);
