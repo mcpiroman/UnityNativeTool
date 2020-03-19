@@ -30,6 +30,9 @@ namespace UnityNativeTool.Internal
         private static List<NativeFunction> _mockedNativeFunctions = new List<NativeFunction>();
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
+        private static List<MethodInfo> _customLoadedTriggers = null;
+        private static List<MethodInfo> _customBeforeUnloadTriggers = null;
+        private static List<MethodInfo> _customAfterUnloadTriggers = null;
 
         /// <summary>
         /// Initialization.
@@ -78,12 +81,39 @@ namespace UnityNativeTool.Internal
                             if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
                                 MockNativeFunction(method);
                         }
+                        else if(method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
+                        {
+                            RegisterTriggerMethod(method, ref _customLoadedTriggers);
+                        }
+                        else if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
+                        {
+                            RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers);
+                        }
+                        else if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
+                        {
+                            RegisterTriggerMethod(method, ref _customAfterUnloadTriggers);
+                        }
                     }
                 }
             }
 
             if (Options.loadingMode == DllLoadingMode.Preload)
                 LoadAll();
+        }
+
+        private static void RegisterTriggerMethod(MethodInfo method, ref List<MethodInfo> triggersList)
+        {
+            var parameters = method.GetParameters();
+            if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll))
+            {
+                if (triggersList == null)
+                    triggersList = new List<MethodInfo>(2);
+                triggersList.Add(method);
+            }
+            else
+            {
+                Debug.LogError($"Trigger method must either take no parameters or one parameter of type {nameof(NativeDll)}. Violation on method {method.Name} in {method.DeclaringType.FullName}");
+            }
         }
 
         /// <summary>
@@ -124,12 +154,14 @@ namespace UnityNativeTool.Internal
                     if (dll.handle != IntPtr.Zero)
                     {
                         LowLevelPluginManager.OnBeforeDllUnload(dll);
+                        InvokeCustomTriggers(_customBeforeUnloadTriggers, dll);
 
                         bool success = SysUnloadDll(dll.handle);
                         if (!success)
                             Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
 
                         dll.ResetAsUnloaded();
+                        InvokeCustomTriggers(_customAfterUnloadTriggers, dll);
                     }
                 }
             }
@@ -449,6 +481,7 @@ namespace UnityNativeTool.Internal
                 else
                 {
                     dll.loadingError = false;
+                    InvokeCustomTriggers(_customLoadedTriggers, dll);
                     LowLevelPluginManager.OnDllLoaded(dll);
                 }
             }
@@ -473,6 +506,20 @@ namespace UnityNativeTool.Internal
                 }
 
                 nativeFunction.@delegate = Marshal.GetDelegateForFunctionPointer(funcPtr, nativeFunction.delegateType);
+            }
+        }
+
+        private static void InvokeCustomTriggers(List<MethodInfo> triggers, NativeDll dll)
+        {
+            if (triggers == null)
+                return;
+
+            foreach(var triggerMethod in triggers)
+            {
+                if (triggerMethod.GetParameters().Length == 1)
+                    triggerMethod.Invoke(null, new object[] { dll });
+                else
+                    triggerMethod.Invoke(null, Array.Empty<object>());
             }
         }
 
