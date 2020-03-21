@@ -111,7 +111,7 @@ namespace UnityNativeTool.Internal
         public static extern int dlclose(IntPtr handle);
     }
 
-    public enum Unix_DlopenFlags : int
+    public enum PosixDlopenFlags : int
     {
         Lazy = 0x00001,
         Now = 0x00002,

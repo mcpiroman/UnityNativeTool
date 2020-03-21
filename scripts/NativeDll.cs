@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace UnityNativeTool.Internal
+namespace UnityNativeTool
 {
-    internal class NativeDll
+    public class NativeDll
     {
         public readonly string name;
         public string path;
@@ -30,7 +30,10 @@ namespace UnityNativeTool.Internal
             }
         }
     }
+}
 
+namespace UnityNativeTool.Internal
+{
     public class NativeDllInfo
     {
         public string name;

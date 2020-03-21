@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace UnityNativeTool.Internal
+namespace UnityNativeTool
 {
-    internal struct NativeFunctionIdentity
+    public struct NativeFunctionIdentity
     {
         public string symbol;
         public string containingDllName;
@@ -30,7 +30,7 @@ namespace UnityNativeTool.Internal
         }
     }
 
-    internal class NativeFunction
+    public class NativeFunction
     {
         public readonly NativeFunctionIdentity identity;
         public NativeDll containingDll;
