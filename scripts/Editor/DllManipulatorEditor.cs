@@ -21,6 +21,10 @@ namespace UnityNativeTool.Internal
             "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
         private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
             "Whether to run only inside editor (which is recommended).");
+        private static readonly GUIContent ENABLE_IN_EDIT_MODE = new GUIContent("Enable in Edit Mode",
+            "Should the DLLs also be mocked in edit mode. " +
+            "Turning this off when not needed improves performance when entering edit mode. " +
+            "Changed are currently only visible on the next time edit mode is entered.");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
             "Choose from which assemblies to mock native functions");
         private static readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
@@ -246,6 +250,8 @@ namespace UnityNativeTool.Internal
             }
 
             options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
+            
+            options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
 
             options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
             
