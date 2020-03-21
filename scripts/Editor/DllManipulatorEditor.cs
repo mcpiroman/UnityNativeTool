@@ -8,6 +8,8 @@ using UnityEditor.ShortcutManagement;
 #endif
 using System.IO;
 using System;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 
 namespace UnityNativeTool.Internal
 {
@@ -138,6 +140,12 @@ namespace UnityNativeTool.Internal
                 EditorGUILayout.Space();
                 var time = t.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
+            }
+
+            if (GUI.changed)
+            {
+                EditorUtility.SetDirty(target);
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             }
         }
 
