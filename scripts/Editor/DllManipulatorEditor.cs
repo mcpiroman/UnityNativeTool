@@ -8,8 +8,6 @@ using UnityEditor.ShortcutManagement;
 #endif
 using System.IO;
 using System;
-using UnityEditor.SceneManagement;
-using UnityEngine.SceneManagement;
 
 namespace UnityNativeTool.Internal
 {
@@ -148,7 +146,6 @@ namespace UnityNativeTool.Internal
             if (GUI.changed)
             {
                 EditorUtility.SetDirty(target);
-                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             }
         }
 
