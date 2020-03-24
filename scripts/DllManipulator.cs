@@ -81,17 +81,16 @@ namespace UnityNativeTool.Internal
                             if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
                                 MockNativeFunction(method);
                         }
-                        else if(method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
+                        else
                         {
-                            RegisterTriggerMethod(method, ref _customLoadedTriggers);
-                        }
-                        else if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
-                        {
-                            RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers);
-                        }
-                        else if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
-                        {
-                            RegisterTriggerMethod(method, ref _customAfterUnloadTriggers);
+                            if (method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customLoadedTriggers);
+
+                            if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers);
+
+                            if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers);
                         }
                     }
                 }

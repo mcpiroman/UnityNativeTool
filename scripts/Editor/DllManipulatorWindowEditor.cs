@@ -13,13 +13,7 @@ namespace UnityNativeTool.Internal
         {
             window = GetWindow<DllManipulatorWindowEditor>();
             window.Show();
-        }
-
-        [NativeDllLoadedTrigger]
-        [NativeDllAfterUnloadTrigger]
-        public static void RepaintAll()
-        {
-            if(window) window.Repaint();
+            DllManipulatorEditor.RepaintAllEditors += window.Repaint;
         }
 
         void OnGUI()

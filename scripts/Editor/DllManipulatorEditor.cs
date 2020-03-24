@@ -61,11 +61,14 @@ namespace UnityNativeTool.Internal
         private bool _showTargetAssemblies = true;
         private string[] _allKnownAssemblies = null;
         private DateTime _lastKnownAssembliesRefreshTime;
-
+        
+        public static event Action RepaintAllEditors = delegate {};
+        
         public DllManipulatorEditor()
         {
             EditorApplication.pauseStateChanged += _ => Repaint();
             EditorApplication.playModeStateChanged += _ => Repaint();
+            RepaintAllEditors += Repaint;
         }
 
         public override void OnInspectorGUI()
@@ -346,10 +349,7 @@ namespace UnityNativeTool.Internal
         [NativeDllAfterUnloadTrigger]
         public static void RepaintAll()
         {
-            var editors = Resources.FindObjectsOfTypeAll<DllManipulatorEditor>();
-            if(editors == null) return;
-            foreach (var editor in editors)
-                editor.Repaint();
+            RepaintAllEditors.Invoke();
         }
     }
 }
