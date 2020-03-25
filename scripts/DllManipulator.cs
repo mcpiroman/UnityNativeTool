@@ -55,11 +55,11 @@ namespace UnityNativeTool.Internal
             else
             {
                 var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == PathUtils.NormallizeSystemAssemblyPath(a.Location))).ToArray();
-                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => PathUtils.NormallizeSystemAssemblyPath(a.Location)));
-                foreach (var assemblyPath in missingAssemblies)
+                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == a.ManifestModule.Name)).ToArray();
+                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => a.ManifestModule.Name));
+                foreach (var assembly in missingAssemblies)
                 {
-                    Debug.LogError($"Could not find assembly at path {assemblyPath}");
+                    Debug.LogError($"Could not find assembly: {assembly}");
                 }
             }
 
