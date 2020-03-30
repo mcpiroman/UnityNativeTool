@@ -608,34 +608,34 @@ namespace UnityNativeTool.Internal
 
         private static IntPtr SysLoadDll(string filepath)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.LoadLibrary(filepath);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX
             return PInvokes_Linux.dlopen(filepath, (int)Options.posixDlopenFlags);
 #elif UNITY_STANDALONE_OSX
             return PInvokes_Osx.dlopen(filepath, (int)Options.posixDlopenFlags);
+#else // UNITY_STANDALONE_WIN
+            return PInvokes_Windows.LoadLibrary(filepath);
 #endif
         }
 
         private static bool SysUnloadDll(IntPtr libHandle)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.FreeLibrary(libHandle);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlclose(libHandle) == 0;
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlclose(libHandle) == 0;
+#else // UNITY_STANDALONE_WIN
+            return PInvokes_Windows.FreeLibrary(libHandle);
 #endif
         }
 
         private static IntPtr SysGetDllProcAddress(IntPtr libHandle, string symbol)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.GetProcAddress(libHandle, symbol);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlsym(libHandle, symbol);
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlsym(libHandle, symbol);
+#else // UNITY_STANDALONE_WIN
+            return PInvokes_Windows.GetProcAddress(libHandle, symbol);
 #endif
         }
     }
