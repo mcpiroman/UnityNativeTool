@@ -1,5 +1,5 @@
 {
-    "name": "MCpiroman.UnityNativeToolEditor",
+    "name": "MCpiroman.UnityNativeTool.Editor",
     "references": [
         "MCpiroman.UnityNativeTool"
     ],

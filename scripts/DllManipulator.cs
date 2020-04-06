@@ -47,20 +47,18 @@ namespace UnityNativeTool.Internal
 
             LowLevelPluginManager.ResetStubPlugin();
 
-            Assembly[] assemblies;
-            if (Options.assemblyPaths.Length == 0)
+            IEnumerable<string> assemblyPathsTemp = Options.assemblyPaths;
+            if (!assemblyPathsTemp.Any())
+                assemblyPathsTemp = new[] {"Assembly-CSharp", "Assembly-CSharp-Editor"};
+            
+            assemblyPathsTemp = assemblyPathsTemp.Concat(new [] { "MCpiroman.UnityNativeTool", "MCpiroman.UnityNativeTool.Editor" });
+            
+            var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.ChangeExtension(a.ManifestModule.Name, null))).ToArray();
+            var missingAssemblies = assemblyPathsTemp.Except(assemblies.Select(a => Path.ChangeExtension(a.ManifestModule.Name, null)));
+            foreach (var assembly in missingAssemblies)
             {
-                assemblies = new[] { Assembly.GetExecutingAssembly() };
-            }
-            else
-            {
-                var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == a.ManifestModule.Name)).ToArray();
-                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => a.ManifestModule.Name));
-                foreach (var assembly in missingAssemblies)
-                {
-                    Debug.LogError($"Could not find assembly: {assembly}");
-                }
+                Debug.LogError($"Could not find assembly: {assembly}");
             }
 
             foreach (var assembly in assemblies)
