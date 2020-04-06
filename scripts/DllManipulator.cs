@@ -17,6 +17,16 @@ namespace UnityNativeTool.Internal
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
         private const string CRASH_FILE_NAME_PREFIX = "unityNativeCrash_";
+        public static readonly string[] DEFAULT_ASSEMBLY_NAMES = {"Assembly-CSharp"
+            #if UNITY_EDITOR
+            , "Assembly-CSharp-Editor"
+            #endif
+        };
+        public static readonly string[] INTERNAL_ASSEMBLY_NAMES = {"MCpiroman.UnityNativeTool"
+            #if UNITY_EDITOR
+            , "MCpiroman.UnityNativeTool.Editor"
+            #endif
+        };
 
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
@@ -47,11 +57,11 @@ namespace UnityNativeTool.Internal
 
             LowLevelPluginManager.ResetStubPlugin();
 
-            IEnumerable<string> assemblyPathsTemp = Options.assemblyPaths;
+            IEnumerable<string> assemblyPathsTemp = Options.assemblyNames;
             if (!assemblyPathsTemp.Any())
-                assemblyPathsTemp = new[] {"Assembly-CSharp", "Assembly-CSharp-Editor"};
+                assemblyPathsTemp = DEFAULT_ASSEMBLY_NAMES;
             
-            assemblyPathsTemp = assemblyPathsTemp.Concat(new [] { "MCpiroman.UnityNativeTool", "MCpiroman.UnityNativeTool.Editor" });
+            assemblyPathsTemp = assemblyPathsTemp.Concat(INTERNAL_ASSEMBLY_NAMES);
             
             var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
             var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.ChangeExtension(a.ManifestModule.Name, null))).ToArray();
@@ -642,7 +652,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorOptions
     {
         public string dllPathPattern;
-        public string[] assemblyPaths; //empty means only executing assembly
+        public List<string> assemblyNames; // empty means only default assemblies
         public DllLoadingMode loadingMode;
         public PosixDlopenFlags posixDlopenFlags;
         public bool threadSafe;

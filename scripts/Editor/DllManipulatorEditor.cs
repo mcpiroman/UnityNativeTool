@@ -17,12 +17,12 @@ namespace UnityNativeTool.Internal
         private static readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
             "If true, all found native functions will be mocked.\n\n" +
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
-        private static readonly GUIContent TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT = new GUIContent("Only executing assembly",
-            "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
+        private static readonly GUIContent ONLY_ASSEMBLY_CSHARP_GUI_CONTENT = new GUIContent("Only Assembly-CSharp(-Editor)",
+            "If true, native functions will be mocked only in Assembly-CSharp and Assembly-CSharp-Editor. Alternatively enter a list of assembly names.");
         private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
             "Whether to run only inside editor (which is recommended).");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
-            "Choose from which assemblies to mock native functions");
+            "List of assembly names to mock native functions in (no file extension).");
         private static readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
             "Available macros:\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_DLL_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
@@ -53,7 +53,6 @@ namespace UnityNativeTool.Internal
             "Use only if you are sure no other thread will be call mocked natives.");
         private static readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
             "Use only if you are sure no other thread will be call mocked natives.");
-        private static readonly TimeSpan ASSEMBLIES_REFRESH_INTERVAL = TimeSpan.FromSeconds(1);
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
@@ -181,43 +180,17 @@ namespace UnityNativeTool.Internal
                 GUI.enabled = false;
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
-            if (EditorGUILayout.Toggle(TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT, options.assemblyPaths.Length == 0))
+            if (EditorGUILayout.Toggle(ONLY_ASSEMBLY_CSHARP_GUI_CONTENT, options.assemblyNames.Count == 0))
             {
-                options.assemblyPaths = new string[0];
+                options.assemblyNames.Clear();
             }
             else
             {
                 var prevIndent1 = EditorGUI.indentLevel;
                 EditorGUI.indentLevel++;
 
-                if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
-                {
-                    var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
-                        .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
-
-                    var editorCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor)
-                       .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
-
-                    var assemblyAssets = Resources.FindObjectsOfTypeAll<PluginImporter>()
-                        .Where(p => !p.isNativePlugin)
-                        .Select(p => PathUtils.NormallizeUnityAssemblyPath(p.assetPath));
-
-                    string[] defaultAssemblyPrefixes = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
-                    
-                    _allKnownAssemblies = playerCompiledAssemblies
-                        .Concat(assemblyAssets)
-                        .Concat(editorCompiledAssemblies)
-                        .OrderBy(path => Array.FindIndex(defaultAssemblyPrefixes, p => path.Substring(path.LastIndexOf('/') + 1).StartsWith(p)))
-                        .ToArray();
-                    _lastKnownAssembliesRefreshTime = DateTime.Now;
-                }
-
-                if (options.assemblyPaths.Length == 0)
-                {
-                    var first = GetFirstAssemblyToList(_allKnownAssemblies);
-                    if(first != null)
-                        options.assemblyPaths = new[] { first };
-                }
+                if (options.assemblyNames.Count == 0)
+                    options.assemblyNames.AddRange(DllManipulator.DEFAULT_ASSEMBLY_NAMES);
 
                 _showTargetAssemblies = EditorGUILayout.Foldout(_showTargetAssemblies, TARGET_ASSEMBLIES_GUI_CONTENT);
                 if (_showTargetAssemblies)
@@ -225,19 +198,7 @@ namespace UnityNativeTool.Internal
                     var prevIndent2 = EditorGUI.indentLevel;
                     EditorGUI.indentLevel++;
 
-                    var selectedAssemblies = options.assemblyPaths.Where(p => _allKnownAssemblies.Any(a => PathUtils.DllPathsEqual(a, p))).ToList();
-                    var notSelectedAssemblies = _allKnownAssemblies.Except(selectedAssemblies).ToArray();
-                    DrawList(selectedAssemblies, i =>
-                    {
-                        var values = new[] { selectedAssemblies[i] }
-                            .Concat(notSelectedAssemblies)
-                            .Select(a => a.Substring(a.LastIndexOf('/') + 1))
-                            .ToArray();
-
-                        var selectedIndex = EditorGUILayout.Popup(0, values);
-                        return selectedIndex == 0 ? selectedAssemblies[i] : notSelectedAssemblies[selectedIndex - 1];
-                    }, notSelectedAssemblies.Length > 0, () => notSelectedAssemblies[0]);
-                    options.assemblyPaths = selectedAssemblies.ToArray();
+                    DrawList(options.assemblyNames, i => EditorGUILayout.TextField(options.assemblyNames[i]), true, () => "");
 
                     EditorGUI.indentLevel = prevIndent2;
                 }

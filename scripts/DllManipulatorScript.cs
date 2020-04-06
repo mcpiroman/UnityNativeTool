@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Linq;
@@ -21,7 +22,7 @@ namespace UnityNativeTool
 #else // UNITY_STANDALONE_WIN Windows fallback
             "{assets}/Plugins/__{name}.dll",
 #endif
-            assemblyPaths = new string[0],
+            assemblyNames = new List<string>(),
             loadingMode = DllLoadingMode.Lazy,
             posixDlopenFlags = PosixDlopenFlags.Lazy,
             threadSafe = false,
