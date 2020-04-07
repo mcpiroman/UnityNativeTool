@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
@@ -15,12 +15,14 @@ namespace UnityNativeTool.Internal
     [CustomEditor(typeof(DllManipulatorScript))]
     public class DllManipulatorEditor : Editor
     {
+        private static readonly string INFO_BOX_GUI_CONTENT = 
+            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy.";
         private static readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
             "If true, all found native functions will be mocked.\n\n" +
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
         private static readonly GUIContent ONLY_ASSEMBLY_CSHARP_GUI_CONTENT = new GUIContent("Only Assembly-CSharp(-Editor)",
             "If true, native functions will be mocked only in Assembly-CSharp and Assembly-CSharp-Editor. Alternatively enter a list of assembly names.");
-        private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
+        private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in Editor",
             "Whether to run only inside editor (which is recommended).");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
             "List of assembly names to mock native functions in (no file extension).");
@@ -70,6 +72,8 @@ namespace UnityNativeTool.Internal
         public override void OnInspectorGUI()
         {
             var t = (DllManipulatorScript)this.target;
+
+            EditorGUILayout.HelpBox(INFO_BOX_GUI_CONTENT, MessageType.Info);
 
             DrawOptions(t.Options);
             EditorGUILayout.Space();
@@ -175,6 +179,11 @@ namespace UnityNativeTool.Internal
 
         private void DrawOptions(DllManipulatorOptions options)
         {
+            options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
+            options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
+
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField("Managed Side", EditorStyles.boldLabel);
             var guiEnabledStack = new Stack<bool>();
 
             guiEnabledStack.Push(GUI.enabled);
@@ -227,8 +236,9 @@ namespace UnityNativeTool.Internal
                 EditorGUI.indentLevel = prevIndent1;
             }
 
-            options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
-
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField("Native Side", EditorStyles.boldLabel);
+            
             options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
             
             options.loadingMode = (DllLoadingMode)EditorGUILayout.EnumPopup(DLL_LOADING_MODE_GUI_CONTENT, options.loadingMode);
