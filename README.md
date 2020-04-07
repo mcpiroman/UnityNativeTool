@@ -11,7 +11,11 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 
 ## Installation
 
-1. Download and add unity package from [releases](https://github.com/MCpiroman/UnityNativeTool/releases), or clone this repo to your project (note that if you don't use the prebuilt package and you're willing to use [low level interface callbacks](https://docs.unity3d.com/Manual/NativePluginInterface.html), you'll need to compile the stub plugin yourself form `stubLluiPlugin.c`).
+1. Download and add unity package from [releases](https://github.com/MCpiroman/UnityNativeTool/releases), or clone this repo to your project
+
+   - Clone it into the `<Project Root>/Packages` folder to use it as a local [embedded package](https://docs.unity3d.com/Manual/upm-embed.html) with [upm](https://docs.unity3d.com/Packages/com.unity.package-manager-ui@1.8/manual/index.html).
+
+   - Note that if you don't use the prebuilt package and you're willing to use [low level interface callbacks](https://docs.unity3d.com/Manual/NativePluginInterface.html), you'll need to compile the stub plugin yourself from `stubLluiPlugin.c`.
 
 2. In project settings, set _Api Compatibility Level_ to .NET 4.x or above.  
    Edit > Project Settings > Player > Other Settings > Api Compatibility Level
