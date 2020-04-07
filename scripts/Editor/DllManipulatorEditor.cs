@@ -8,6 +8,7 @@ using UnityEditor.ShortcutManagement;
 #endif
 using System.IO;
 using System;
+using UnityEditorInternal;
 
 namespace UnityNativeTool.Internal
 {
@@ -53,6 +54,7 @@ namespace UnityNativeTool.Internal
             "Use only if you are sure no other thread will be call mocked natives.");
         private static readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
             "Use only if you are sure no other thread will be call mocked natives.");
+        private static readonly TimeSpan ASSEMBLIES_REFRESH_INTERVAL = TimeSpan.FromSeconds(5);
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
@@ -189,6 +191,9 @@ namespace UnityNativeTool.Internal
                 var prevIndent1 = EditorGUI.indentLevel;
                 EditorGUI.indentLevel++;
 
+                if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
+                    RefreshAllKnownAssemblies();
+                
                 if (options.assemblyNames.Count == 0)
                     options.assemblyNames.AddRange(DllManipulator.DEFAULT_ASSEMBLY_NAMES);
 
@@ -198,7 +203,23 @@ namespace UnityNativeTool.Internal
                     var prevIndent2 = EditorGUI.indentLevel;
                     EditorGUI.indentLevel++;
 
-                    DrawList(options.assemblyNames, i => EditorGUILayout.TextField(options.assemblyNames[i]), true, () => "");
+                    DrawList(options.assemblyNames, i =>
+                        {
+                            var result = EditorGUILayout.TextField(options.assemblyNames[i]);
+
+                            // Show a pop up for quickly selecting an assembly
+                            var selectedId = EditorGUILayout.Popup(0,
+                                new[] {"Find"}.Concat(_allKnownAssemblies).ToArray(), GUILayout.Width(80));
+
+                            if (selectedId > 0)
+                                result = _allKnownAssemblies[selectedId - 1];
+                            return result;
+                        }, true, () => "",
+                        () =>
+                        {
+                            options.assemblyNames = options.assemblyNames
+                                .Concat(_allKnownAssemblies).Distinct().ToList();
+                        });
 
                     EditorGUI.indentLevel = prevIndent2;
                 }
@@ -242,7 +263,28 @@ namespace UnityNativeTool.Internal
             GUI.enabled = guiEnabledStack.Pop();
         }
 
-        private void DrawList<T>(IList<T> elements, Func<int, T> drawElement, bool canAddNewElement, Func<T> getNewElement)
+        /// <summary>
+        /// Will search for all managed assemblies and store them in <see cref="_allKnownAssemblies"/>.
+        /// Excludes assemblies starting with <see cref="DllManipulator.IGNORED_ASSEMBLY_PREFIXES"/>
+        /// </summary>
+        private void RefreshAllKnownAssemblies()
+        {
+            var assemblyAsmdefs = Resources.FindObjectsOfTypeAll<AssemblyDefinitionAsset>()
+                .Select(p => p.name);
+            
+            var pluginImporterAsmdefs = Resources.FindObjectsOfTypeAll<PluginImporter>()
+                .Where(p => !p.isNativePlugin)
+                .Select(p => Path.GetFileNameWithoutExtension(p.assetPath));
+
+            _allKnownAssemblies = assemblyAsmdefs
+                .Concat(pluginImporterAsmdefs)
+                .Where(a => !DllManipulator.IGNORED_ASSEMBLY_PREFIXES.Any(a.StartsWith))
+                .OrderBy(name => name)
+                .ToArray();
+            _lastKnownAssembliesRefreshTime = DateTime.Now;
+        }
+
+        private void DrawList<T>(IList<T> elements, Func<int, T> drawElement, bool canAddNewElement, Func<T> getNewElement, Action addAll)
         {
             int indexToRemove = -1;
             for (int i = 0; i < elements.Count; i++)
@@ -263,8 +305,16 @@ namespace UnityNativeTool.Internal
             GUILayout.Space(EditorGUI.indentLevel * 15);
             var prevGuiEnabled = GUI.enabled;
             GUI.enabled = prevGuiEnabled && canAddNewElement;
+            
             if (GUILayout.Button("Add", GUILayout.Width(40)))
                 elements.Add(getNewElement());
+
+            if (GUILayout.Button("Add All", GUILayout.Width(80)))
+                addAll();
+            
+            if (GUILayout.Button("Reset", GUILayout.Width(50)))
+                elements.Clear();
+
             GUI.enabled = prevGuiEnabled;
             GUILayout.EndHorizontal();
         }

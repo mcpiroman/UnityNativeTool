@@ -27,6 +27,8 @@ namespace UnityNativeTool.Internal
             , "MCpiroman.UnityNativeTool.Editor"
             #endif
         };
+        public static readonly string[] IGNORED_ASSEMBLY_PREFIXES = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
+
 
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
