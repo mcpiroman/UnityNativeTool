@@ -117,9 +117,9 @@ namespace UnityNativeTool.Internal
 
 
                     bool unloadAll;
-                    if(EditorApplication.isPlaying && t.Options.threadSafe)
+                    if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.Options.threadSafe)
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT);
-                    else if (EditorApplication.isPlaying && !EditorApplication.isPaused && t.Options.loadingMode == DllLoadingMode.Preload)
+                    else if ((EditorApplication.isPlaying && !EditorApplication.isPaused || t.Options.enableInEditMode) && t.Options.loadingMode == DllLoadingMode.Preload)
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT);
                     else
                         unloadAll = GUILayout.Button("Unload all DLLs");
@@ -130,7 +130,7 @@ namespace UnityNativeTool.Internal
 
                 DrawUsedDlls(usedDlls);
             }
-            else if(EditorApplication.isPlaying)
+            else if(EditorApplication.isPlaying || t.Options.enableInEditMode)
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -139,7 +139,7 @@ namespace UnityNativeTool.Internal
                 GUILayout.EndHorizontal();
             }
 
-            if(EditorApplication.isPlaying && t.InitializationTime != null)
+            if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.InitializationTime != null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();

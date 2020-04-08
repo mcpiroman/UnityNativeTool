@@ -46,7 +46,7 @@ namespace UnityNativeTool
             {
                 if (EditorApplication.isPlaying)
                     Destroy(gameObject);
-                else
+                else if(_singletonInstance != this)
                     enabled = false; //Don't destroy as the user may be editing a Prefab
                 return;
             }
