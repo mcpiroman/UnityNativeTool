@@ -1,12 +1,18 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Threading;
 using System.Linq;
 using UnityEngine;
 using UnityNativeTool.Internal;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace UnityNativeTool
 {
+    #if UNITY_EDITOR
+    [ExecuteInEditMode]
+    #endif
     public class DllManipulatorScript : MonoBehaviour
     {
         private static DllManipulatorScript _singletonInstance = null;
@@ -30,14 +36,30 @@ namespace UnityNativeTool
             crashLogsStackTrace = false,
             mockAllNativeFunctions = true,
             onlyInEditor = true,
+            enableInEditMode = false
         };
 
         private void OnEnable()
         {
-#if !UNITY_EDITOR
-            if (Options.onlyInEditor)
+#if UNITY_EDITOR
+            if (_singletonInstance != null)
+            {
+                if (EditorApplication.isPlaying)
+                    Destroy(gameObject);
+                else
+                    enabled = false; //Don't destroy as the user may be editing a Prefab
                 return;
-#endif
+            }
+            _singletonInstance = this;
+            
+            if(EditorApplication.isPlaying)
+                DontDestroyOnLoad(gameObject);
+
+            if(EditorApplication.isPlaying || Options.enableInEditMode)
+                Initialize();
+#else
+            if (Options.onlyInEditor) 
+                return;
 
             if (_singletonInstance != null)
             {
@@ -45,8 +67,14 @@ namespace UnityNativeTool
                 return;
             }
             _singletonInstance = this;
-            DontDestroyOnLoad(gameObject);
 
+            DontDestroyOnLoad(gameObject);
+            Initialize();
+#endif
+        }
+        
+        private void Initialize()
+        {
             var initTimer = System.Diagnostics.Stopwatch.StartNew();
 
             DllManipulator.Options = Options;
@@ -66,7 +94,8 @@ namespace UnityNativeTool
 
                 DllManipulator.UnloadAll();
                 DllManipulator.ForgetAllDlls();
-                DllManipulator.ClearCrashLogs();         
+                DllManipulator.ClearCrashLogs();
+                _singletonInstance = null;
             }
         }
     }

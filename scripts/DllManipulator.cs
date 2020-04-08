@@ -652,6 +652,7 @@ namespace UnityNativeTool.Internal
         public bool crashLogsStackTrace;
         public bool mockAllNativeFunctions;
         public bool onlyInEditor;
+        public bool enableInEditMode;
     }
 
     public enum DllLoadingMode
