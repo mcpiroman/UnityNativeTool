@@ -8,7 +8,6 @@ using UnityEditor.ShortcutManagement;
 #endif
 using System.IO;
 using System;
-using UnityEditorInternal;
 
 namespace UnityNativeTool.Internal
 {
@@ -279,15 +278,19 @@ namespace UnityNativeTool.Internal
         /// </summary>
         private void RefreshAllKnownAssemblies()
         {
-            var assemblyAsmdefs = Resources.FindObjectsOfTypeAll<AssemblyDefinitionAsset>()
-                .Select(p => p.name);
-            
-            var pluginImporterAsmdefs = Resources.FindObjectsOfTypeAll<PluginImporter>()
+            var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
+                .Select(a => Path.GetFileNameWithoutExtension(a.outputPath));
+
+            var editorCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor)
+                .Select(a => Path.GetFileNameWithoutExtension(a.outputPath));
+
+            var assemblyAssets = Resources.FindObjectsOfTypeAll<PluginImporter>()
                 .Where(p => !p.isNativePlugin)
                 .Select(p => Path.GetFileNameWithoutExtension(p.assetPath));
 
-            _allKnownAssemblies = assemblyAsmdefs
-                .Concat(pluginImporterAsmdefs)
+            _allKnownAssemblies = playerCompiledAssemblies
+                .Concat(editorCompiledAssemblies)
+                .Concat(assemblyAssets)
                 .Where(a => !DllManipulator.IGNORED_ASSEMBLY_PREFIXES.Any(a.StartsWith))
                 .OrderBy(name => name)
                 .ToArray();
