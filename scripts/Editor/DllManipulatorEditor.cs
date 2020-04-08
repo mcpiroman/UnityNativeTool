@@ -22,7 +22,7 @@ namespace UnityNativeTool.Internal
         private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
             "Whether to run only inside editor (which is recommended).");
         private static readonly GUIContent ENABLE_IN_EDIT_MODE = new GUIContent("Enable in Edit Mode",
-            "Should the DLLs also be mocked in edit mode. " +
+            "Should the DLLs also be mocked in edit mode (i.e. even if you don't hit 'play' in editor). " +
             "Turning this off when not needed improves performance when entering edit mode. " +
             "Changed are currently only visible on the next time edit mode is entered.");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
