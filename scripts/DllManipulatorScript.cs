@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Threading;
 using System.Linq;
 using UnityEngine;
-using UnityEditor;
 using UnityNativeTool.Internal;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -59,7 +58,8 @@ namespace UnityNativeTool
             if(EditorApplication.isPlaying || Options.enableInEditMode)
                 Initialize();
 #else
-            if (Options.onlyInEditor) return;
+            if (Options.onlyInEditor) 
+                return;
 
             if (_singletonInstance != null)
             {
