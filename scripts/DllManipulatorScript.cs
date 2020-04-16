@@ -92,9 +92,7 @@ namespace UnityNativeTool
                 //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
                 //Thankfully thread safety with Lazy mode is not implemented yet.
 
-                DllManipulator.UnloadAll();
-                DllManipulator.ForgetAllDlls();
-                DllManipulator.ClearCrashLogs();
+                DllManipulator.Reset();
                 _singletonInstance = null;
             }
         }

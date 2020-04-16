@@ -100,6 +100,20 @@ namespace UnityNativeTool.Internal
                 LoadAll();
         }
 
+        /// <summary>
+        /// Will unload/forget all dll's and reset the state 
+        /// </summary>
+        public static void Reset()
+        {
+            UnloadAll();
+            ForgetAllDlls();
+            ClearCrashLogs();
+            
+            _customLoadedTriggers?.Clear();
+            _customAfterUnloadTriggers?.Clear();
+            _customBeforeUnloadTriggers?.Clear();
+        }
+        
         private static void RegisterTriggerMethod(MethodInfo method, ref List<MethodInfo> triggersList)
         {
             var parameters = method.GetParameters();
