@@ -348,8 +348,8 @@ namespace UnityNativeTool.Internal
             DllManipulator.UnloadAll();
         }
 
-        [NativeDllLoadedTrigger]
-        [NativeDllAfterUnloadTrigger]
+        [NativeDllLoadedTrigger(UseMainThreadQueue = true)]
+        [NativeDllAfterUnloadTrigger(UseMainThreadQueue = true)]
         public static void RepaintAll()
         {
             RepaintAllEditors.Invoke();

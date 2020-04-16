@@ -30,6 +30,7 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 - If something is not working, first check out available options (and read their descriptions), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 - Options are accessible via `DllManipulatorScript` editor or window.
 - Although this tool presumably works in built game, it's intended to be used in editor.
+- Get callbacks in C# when the dll load state has changed with attributes like `[NativeDllLoadedTrigger]`, see `Attributes.cs` for more information
 
 ## Limitations
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.

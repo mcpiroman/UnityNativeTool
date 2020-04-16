@@ -57,6 +57,10 @@ namespace UnityNativeTool
 
             if(EditorApplication.isPlaying || Options.enableInEditMode)
                 Initialize();
+            
+            if(!EditorApplication.isPlaying && Options.enableInEditMode)
+                EditorApplication.update += Update;
+
 #else
             if (Options.onlyInEditor) 
                 return;
@@ -82,6 +86,20 @@ namespace UnityNativeTool
 
             initTimer.Stop();
             InitializationTime = initTimer.Elapsed;
+        }
+        
+        /// <summary>
+        /// Note: also called in edit mode if Options.enableInEditMode is set.
+        /// </summary>
+        private void Update()
+        {
+            DllManipulator.InvokeMainThreadQueue();
+        }
+
+        private void OnDisable()
+        {
+            if(!EditorApplication.isPlaying && Options.enableInEditMode)
+                EditorApplication.update -= Update;
         }
 
         private void OnDestroy()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -30,10 +31,12 @@ namespace UnityNativeTool.Internal
         private static List<NativeFunction> _mockedNativeFunctions = new List<NativeFunction>();
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
-        private static List<MethodInfo> _customLoadedTriggers = null;
-        private static List<MethodInfo> _customBeforeUnloadTriggers = null;
-        private static List<MethodInfo> _customAfterUnloadTriggers = null;
-
+        
+        private static List<Tuple<MethodInfo, bool>> _customLoadedTriggers = null; //List of callbacks to run, whether to run them on the main thread.
+        private static List<Tuple<MethodInfo, bool>> _customBeforeUnloadTriggers = null;
+        private static List<Tuple<MethodInfo, bool>> _customAfterUnloadTriggers = null;
+        private static ConcurrentQueue<Tuple<MethodInfo, object[]>> _mainThreadTriggerQueue = new ConcurrentQueue<Tuple<MethodInfo, object[]>>();
+        
         /// <summary>
         /// Initialization.
         /// Finds and mocks relevant native function declarations.
@@ -84,13 +87,13 @@ namespace UnityNativeTool.Internal
                         else
                         {
                             if (method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customLoadedTriggers);
+                                RegisterTriggerMethod(method, ref _customLoadedTriggers, method.GetCustomAttribute<NativeDllLoadedTriggerAttribute>().UseMainThreadQueue);
 
                             if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers);
+                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers, method.GetCustomAttribute<NativeDllBeforeUnloadTriggerAttribute>().UseMainThreadQueue);
 
                             if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers);
+                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers, method.GetCustomAttribute<NativeDllAfterUnloadTriggerAttribute>().UseMainThreadQueue);
                         }
                     }
                 }
@@ -113,19 +116,20 @@ namespace UnityNativeTool.Internal
             _customAfterUnloadTriggers?.Clear();
             _customBeforeUnloadTriggers?.Clear();
         }
-        
-        private static void RegisterTriggerMethod(MethodInfo method, ref List<MethodInfo> triggersList)
+
+        private static void RegisterTriggerMethod(MethodInfo method, ref List<Tuple<MethodInfo, bool>> triggersList, bool runOnMainThread)
         {
             var parameters = method.GetParameters();
-            if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll))
+            if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll)
+                                       || parameters.Length == 2 && parameters[0].ParameterType == typeof(NativeDll) && parameters[1].ParameterType == typeof(int))
             {
                 if (triggersList == null)
-                    triggersList = new List<MethodInfo>(2);
-                triggersList.Add(method);
+                    triggersList = new List<Tuple<MethodInfo, bool>>();
+                triggersList.Add(new Tuple<MethodInfo, bool>(method, runOnMainThread));
             }
             else
             {
-                Debug.LogError($"Trigger method must either take no parameters or one parameter of type {nameof(NativeDll)}. Violation on method {method.Name} in {method.DeclaringType.FullName}");
+                Debug.LogError($"Trigger method must either take no parameters or one parameter of type {nameof(NativeDll)} or two of type {nameof(NativeDll)} and int. Violation on method {method.Name} in {method.DeclaringType.FullName}");
             }
         }
 
@@ -522,18 +526,39 @@ namespace UnityNativeTool.Internal
             }
         }
 
-        private static void InvokeCustomTriggers(List<MethodInfo> triggers, NativeDll dll)
+        private static void InvokeCustomTriggers(List<Tuple<MethodInfo, bool>> triggers, NativeDll dll)
         {
             if (triggers == null)
                 return;
 
-            foreach(var triggerMethod in triggers)
+            foreach(var (methodInfo, useMainThreadQueue) in triggers)
             {
-                if (triggerMethod.GetParameters().Length == 1)
-                    triggerMethod.Invoke(null, new object[] { dll });
+                object[] args;
+                
+                // Determine args for method
+                if (methodInfo.GetParameters().Length == 2)
+                    args = new object[] { dll, _unityMainThreadId };
+                else if (methodInfo.GetParameters().Length == 1)
+                    args = new object[] { dll };
                 else
-                    triggerMethod.Invoke(null, Array.Empty<object>());
+                    args =  Array.Empty<object>();
+                
+                // Execute now or queue to the main thread
+                if (useMainThreadQueue /*&& Thread.CurrentThread.ManagedThreadId != _unityMainThreadId*/)
+                    _mainThreadTriggerQueue.Enqueue(new Tuple<MethodInfo, object[]>(methodInfo, args));
+                else
+                    methodInfo.Invoke(null, args);
             }
+        }
+
+        /// <summary>
+        /// Executes queued methods.
+        /// Should be called from the main thread in Update.
+        /// </summary>
+        public static void InvokeMainThreadQueue()
+        {
+            while (_mainThreadTriggerQueue.TryDequeue(out var action))
+                action.Item1.Invoke(null, action.Item2);
         }
 
         /// <summary>
