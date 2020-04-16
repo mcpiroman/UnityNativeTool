@@ -31,6 +31,7 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 - Options are accessible via `DllManipulatorScript` editor or window.
 - Although this tool presumably works in built game, it's intended to be used in editor.
 - Get callbacks in C# when the dll load state has changed with attributes like `[NativeDllLoadedTrigger]`, see `Attributes.cs` for more information
+- Unload and load all DLLs via shortcut `Alt+D` and `Alt+Shfit+D` respectively. Editable in the Shortcut Manager for 2019.1+
 
 ## Limitations
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
