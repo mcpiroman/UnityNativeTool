@@ -654,7 +654,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorOptions
     {
         public string dllPathPattern;
-        public string[] assemblyNames; // empty means only default assemblies
+        public List<string> assemblyNames; // empty means only default assemblies
         public DllLoadingMode loadingMode;
         public PosixDlopenFlags posixDlopenFlags;
         public bool threadSafe;
