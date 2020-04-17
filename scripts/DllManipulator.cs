@@ -68,7 +68,7 @@ namespace UnityNativeTool.Internal
             var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
             var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.ChangeExtension(a.ManifestModule.Name, null))).ToArray();
             var missingAssemblies = assemblyPathsTemp.Except(assemblies.Select(a => Path.ChangeExtension(a.ManifestModule.Name, null)));
-            foreach (var assembly in missingAssemblies)
+            foreach (var assembly in missingAssemblies.Except(DEFAULT_ASSEMBLY_NAMES))
             {
                 Debug.LogError($"Could not find assembly: {assembly}");
             }
