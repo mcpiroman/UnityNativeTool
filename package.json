@@ -1,16 +1,14 @@
 {
-  "name": "com.testpackage.unity-native-tool",
+  "name": "com.mcpiroman.unity-native-tool",
   "displayName": "Unity Native Tool",
-  "version": "0.0.1",
-  "unity": "2018.1",
-  "description": "Tool for unloading native DLLs in the editor",
+  "version": "7.1.0",
+  "description": "Tool for unloading native DLLs in the editor. \nhttps://github.com/mcpiroman/UnityNativeTool",
   "keywords": [
     "native",
     "c++",
     "dll"
   ],
   "category": "Unity",
-  "type": "tool",
   "author": {
     "name": "John Doe",
     "email": "john.doe@example.com",
@@ -18,8 +16,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:mcpiroman/UnityNativeTool.git",
-    "revision": "6c6b17c36b33c72754d0bf2ee7e7236a68e10665"
+    "url": "https://github.com/mcpiroman/UnityNativeTool.git"
   }
-  
 }
