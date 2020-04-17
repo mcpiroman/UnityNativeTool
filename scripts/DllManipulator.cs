@@ -692,6 +692,33 @@ namespace UnityNativeTool.Internal
         public bool mockAllNativeFunctions;
         public bool onlyInEditor;
         public bool enableInEditMode;
+
+        public DllManipulatorOptions CloneTo(DllManipulatorOptions other)
+        {
+            other.dllPathPattern = dllPathPattern;
+            other.assemblyNames = (string[]) assemblyNames.Clone();
+            other.loadingMode = loadingMode;
+            other.posixDlopenFlags = posixDlopenFlags;
+            other.threadSafe = threadSafe;
+            other.enableCrashLogs = enableCrashLogs;
+            other.crashLogsDir = crashLogsDir;
+            other.crashLogsStackTrace = crashLogsStackTrace;
+            other.mockAllNativeFunctions = mockAllNativeFunctions;
+            other.onlyInEditor = onlyInEditor;
+            other.enableInEditMode = enableInEditMode;
+            
+            return other;
+        }
+
+        public bool Equals(DllManipulatorOptions other)
+        {
+            return other.dllPathPattern == dllPathPattern && other.assemblyNames.SequenceEqual(assemblyNames) &&
+                   other.loadingMode == loadingMode && other.posixDlopenFlags == posixDlopenFlags &&
+                   other.threadSafe == threadSafe && other.enableCrashLogs == enableCrashLogs &&
+                   other.crashLogsDir == crashLogsDir && other.crashLogsStackTrace == crashLogsStackTrace &&
+                   other.mockAllNativeFunctions == mockAllNativeFunctions && other.onlyInEditor == onlyInEditor &&
+                   other.enableInEditMode == enableInEditMode;
+        }
     }
 
     public enum DllLoadingMode

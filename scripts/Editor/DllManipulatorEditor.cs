@@ -63,6 +63,11 @@ namespace UnityNativeTool.Internal
         private bool _showTargetAssemblies = true;
         private string[] _allKnownAssemblies = null;
         private DateTime _lastKnownAssembliesRefreshTime;
+
+        /// <summary>
+        /// To check if the options have change in order to set the object as dirty
+        /// </summary>
+        private DllManipulatorOptions _prevOptions = new DllManipulatorOptions();
         
         public static event Action RepaintAllEditors = delegate {};
         
@@ -71,6 +76,11 @@ namespace UnityNativeTool.Internal
             EditorApplication.pauseStateChanged += _ => Repaint();
             EditorApplication.playModeStateChanged += _ => Repaint();
             RepaintAllEditors += Repaint;
+        }
+        
+        private void Awake()
+        {
+            ((DllManipulatorScript)target).Options.CloneTo(_prevOptions);
         }
 
         public override void OnInspectorGUI()
@@ -147,9 +157,14 @@ namespace UnityNativeTool.Internal
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
             }
 
+            // Set the target as dirty so changes can be saved, if there are changes
             if (GUI.changed)
             {
-                EditorUtility.SetDirty(target);
+                if (!t.Options.Equals(_prevOptions))
+                {
+                    t.Options.CloneTo(_prevOptions);
+                    EditorUtility.SetDirty(target);
+                }
             }
         }
 
