@@ -182,16 +182,17 @@ namespace UnityNativeTool.Internal
 
         private void DrawOptions(DllManipulatorOptions options)
         {
+            var guiEnabledStack = new Stack<bool>();
+            guiEnabledStack.Push(GUI.enabled);
+            if (EditorApplication.isPlaying)
+                GUI.enabled = false;
+     
             options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
             options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
 
             EditorGUILayout.Separator();
             EditorGUILayout.LabelField("Managed Side", EditorStyles.boldLabel);
-            var guiEnabledStack = new Stack<bool>();
 
-            guiEnabledStack.Push(GUI.enabled);
-            if (EditorApplication.isPlaying)
-                GUI.enabled = false;
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
             if (EditorGUILayout.Toggle(ONLY_ASSEMBLY_CSHARP_GUI_CONTENT, options.assemblyNames.Length == 0))
