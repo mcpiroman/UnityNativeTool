@@ -194,9 +194,9 @@ namespace UnityNativeTool.Internal
                 GUI.enabled = false;
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
-            if (EditorGUILayout.Toggle(ONLY_ASSEMBLY_CSHARP_GUI_CONTENT, options.assemblyNames.Count == 0))
+            if (EditorGUILayout.Toggle(ONLY_ASSEMBLY_CSHARP_GUI_CONTENT, options.assemblyNames.Length == 0))
             {
-                options.assemblyNames.Clear();
+                options.assemblyNames = new string[0];
             }
             else
             {
@@ -206,8 +206,8 @@ namespace UnityNativeTool.Internal
                 if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
                     RefreshAllKnownAssemblies();
                 
-                if (options.assemblyNames.Count == 0)
-                    options.assemblyNames.AddRange(DllManipulator.DEFAULT_ASSEMBLY_NAMES);
+                if (options.assemblyNames.Length == 0)
+                    options.assemblyNames = DllManipulator.DEFAULT_ASSEMBLY_NAMES;
 
                 _showTargetAssemblies = EditorGUILayout.Foldout(_showTargetAssemblies, TARGET_ASSEMBLIES_GUI_CONTENT);
                 if (_showTargetAssemblies)
@@ -230,7 +230,7 @@ namespace UnityNativeTool.Internal
                         () =>
                         {
                             options.assemblyNames = options.assemblyNames
-                                .Concat(_allKnownAssemblies).Distinct().ToList();
+                                .Concat(_allKnownAssemblies).Distinct().ToArray();
                         });
 
                     EditorGUI.indentLevel = prevIndent2;

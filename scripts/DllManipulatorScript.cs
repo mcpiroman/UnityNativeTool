@@ -28,7 +28,7 @@ namespace UnityNativeTool
 #else // UNITY_STANDALONE_WIN Windows fallback
             "{assets}/Plugins/__{name}.dll",
 #endif
-            assemblyNames = new List<string>(),
+            assemblyNames = new string[0],
             loadingMode = DllLoadingMode.Lazy,
             posixDlopenFlags = PosixDlopenFlags.Lazy,
             threadSafe = false,
