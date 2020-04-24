@@ -132,6 +132,9 @@ namespace UnityNativeTool.Internal
                         {
                             LoadTargetFunction(nativeFunction, false);
                         }
+                        
+                        if(Options.loadingMode == DllLoadingMode.Preload)
+                            InvokeCustomTriggers(_customLoadedTriggers, dll);
                     }
                 }
             }
@@ -481,8 +484,9 @@ namespace UnityNativeTool.Internal
                 else
                 {
                     dll.loadingError = false;
-                    InvokeCustomTriggers(_customLoadedTriggers, dll);
                     LowLevelPluginManager.OnDllLoaded(dll);
+                    if(Options.loadingMode == DllLoadingMode.Lazy)
+                        InvokeCustomTriggers(_customLoadedTriggers, dll);
                 }
             }
 
