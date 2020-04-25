@@ -96,11 +96,13 @@ namespace UnityNativeTool
             DllManipulator.InvokeMainThreadQueue();
         }
 
+#if UNITY_EDITOR
         private void OnDisable()
         {
             if(!EditorApplication.isPlaying && Options.enableInEditMode)
                 EditorApplication.update -= Update;
         }
+#endif
 
         private void OnDestroy()
         {
