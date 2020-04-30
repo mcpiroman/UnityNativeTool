@@ -1,7 +1,7 @@
 using System;
-using System.Reflection;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
-using System.Linq;
 using UnityEngine;
 using UnityNativeTool.Internal;
 #if UNITY_EDITOR
@@ -38,6 +38,8 @@ namespace UnityNativeTool
             onlyInEditor = true,
             enableInEditMode = false
         };
+        
+        public static ConcurrentQueue<Action> MainThreadTriggerQueue = new ConcurrentQueue<Action>();
 
         private void OnEnable()
         {
@@ -93,7 +95,17 @@ namespace UnityNativeTool
         /// </summary>
         private void Update()
         {
-            DllManipulator.InvokeMainThreadQueue();
+            InvokeMainThreadQueue();
+        }
+
+        /// <summary>
+        /// Executes queued methods.
+        /// Should be called from the main thread in Update.
+        /// </summary>
+        public static void InvokeMainThreadQueue()
+        {
+            while (MainThreadTriggerQueue.TryDequeue(out var action))
+                action();
         }
 
 #if UNITY_EDITOR

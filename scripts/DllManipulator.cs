@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -35,7 +34,6 @@ namespace UnityNativeTool.Internal
         private static List<Tuple<MethodInfo, bool>> _customLoadedTriggers = null; //List of callbacks to run, whether to run them on the main thread.
         private static List<Tuple<MethodInfo, bool>> _customBeforeUnloadTriggers = null;
         private static List<Tuple<MethodInfo, bool>> _customAfterUnloadTriggers = null;
-        private static ConcurrentQueue<Tuple<MethodInfo, object[]>> _mainThreadTriggerQueue = new ConcurrentQueue<Tuple<MethodInfo, object[]>>();
         
         /// <summary>
         /// Initialization.
@@ -87,13 +85,13 @@ namespace UnityNativeTool.Internal
                         else
                         {
                             if (method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customLoadedTriggers, method.GetCustomAttribute<NativeDllLoadedTriggerAttribute>().UseMainThreadQueue);
+                                RegisterTriggerMethod(method, ref _customLoadedTriggers, method.GetCustomAttribute<NativeDllLoadedTriggerAttribute>());
 
                             if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers, method.GetCustomAttribute<NativeDllBeforeUnloadTriggerAttribute>().UseMainThreadQueue);
+                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers, method.GetCustomAttribute<NativeDllBeforeUnloadTriggerAttribute>());
 
                             if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
-                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers, method.GetCustomAttribute<NativeDllAfterUnloadTriggerAttribute>().UseMainThreadQueue);
+                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers, method.GetCustomAttribute<NativeDllAfterUnloadTriggerAttribute>());
                         }
                     }
                 }
@@ -117,7 +115,7 @@ namespace UnityNativeTool.Internal
             _customBeforeUnloadTriggers?.Clear();
         }
 
-        private static void RegisterTriggerMethod(MethodInfo method, ref List<Tuple<MethodInfo, bool>> triggersList, bool runOnMainThread)
+        private static void RegisterTriggerMethod(MethodInfo method, ref List<Tuple<MethodInfo, bool>> triggersList, TriggerAttribute attribute)
         {
             var parameters = method.GetParameters();
             if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll)
@@ -125,11 +123,12 @@ namespace UnityNativeTool.Internal
             {
                 if (triggersList == null)
                     triggersList = new List<Tuple<MethodInfo, bool>>();
-                triggersList.Add(new Tuple<MethodInfo, bool>(method, runOnMainThread));
+                triggersList.Add(new Tuple<MethodInfo, bool>(method, attribute.UseMainThreadQueue));
             }
             else
             {
-                Debug.LogError($"Trigger method must either take no parameters or one parameter of type {nameof(NativeDll)} or two of type {nameof(NativeDll)} and int. Violation on method {method.Name} in {method.DeclaringType.FullName}");
+                Debug.LogError($"Trigger method must either take no parameters, one parameter of type {nameof(NativeDll)} or one of type {nameof(NativeDll)} and one int. " +
+                               $"See the TriggerAttribute for more details. Violation on method {method.Name} in {method.DeclaringType.FullName}");
             }
         }
 
@@ -544,21 +543,11 @@ namespace UnityNativeTool.Internal
                     args =  Array.Empty<object>();
                 
                 // Execute now or queue to the main thread
-                if (useMainThreadQueue /*&& Thread.CurrentThread.ManagedThreadId != _unityMainThreadId*/)
-                    _mainThreadTriggerQueue.Enqueue(new Tuple<MethodInfo, object[]>(methodInfo, args));
+                if (useMainThreadQueue && Thread.CurrentThread.ManagedThreadId != _unityMainThreadId)
+                    DllManipulatorScript.MainThreadTriggerQueue.Enqueue(() => methodInfo.Invoke(null, args));
                 else
                     methodInfo.Invoke(null, args);
             }
-        }
-
-        /// <summary>
-        /// Executes queued methods.
-        /// Should be called from the main thread in Update.
-        /// </summary>
-        public static void InvokeMainThreadQueue()
-        {
-            while (_mainThreadTriggerQueue.TryDequeue(out var action))
-                action.Item1.Invoke(null, action.Item2);
         }
 
         /// <summary>
@@ -696,7 +685,7 @@ namespace UnityNativeTool.Internal
         public DllManipulatorOptions CloneTo(DllManipulatorOptions other)
         {
             other.dllPathPattern = dllPathPattern;
-            other.assemblyNames = (string[]) assemblyNames.Clone();
+            other.assemblyPaths = (string[]) assemblyPaths.Clone();
             other.loadingMode = loadingMode;
             other.posixDlopenFlags = posixDlopenFlags;
             other.threadSafe = threadSafe;
@@ -712,7 +701,7 @@ namespace UnityNativeTool.Internal
 
         public bool Equals(DllManipulatorOptions other)
         {
-            return other.dllPathPattern == dllPathPattern && other.assemblyNames.SequenceEqual(assemblyNames) &&
+            return other.dllPathPattern == dllPathPattern && other.assemblyPaths.SequenceEqual(assemblyPaths) &&
                    other.loadingMode == loadingMode && other.posixDlopenFlags == posixDlopenFlags &&
                    other.threadSafe == threadSafe && other.enableCrashLogs == enableCrashLogs &&
                    other.crashLogsDir == crashLogsDir && other.crashLogsStackTrace == crashLogsStackTrace &&

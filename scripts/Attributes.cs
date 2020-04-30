@@ -30,13 +30,20 @@ namespace UnityNativeTool
 
     }
 
+    /// <summary>
+    /// Such a method must be static and have one of the following signatures:
+    /// <code>
+    /// public static void Func()
+    /// public static void Func(NativeDll dll)
+    /// public static void Func(NativeDll dll, int mainThreadId)
+    /// </code>
+    /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
     public class TriggerAttribute : Attribute
     {
         /// <summary>
         /// Should the method always be executed on the main thread, to allow use of the Unity API.
-        /// Note: this means the method is not immediately executed but put in a queue.
-        /// For consistent behaviour, the method is put in the queue even if it is triggered from the main thread.
+        /// Note: this means the method is not immediately executed but put in a queue, if it is not triggered from the main thread.
         /// </summary>
         public bool UseMainThreadQueue = false;
     }
@@ -45,6 +52,7 @@ namespace UnityNativeTool
     /// Methods with this attribute are called directly after a native DLL has been loaded.
     /// Such method must be <see langword="static"/> and either have no parameters or one parameter of type <see cref="NativeDll"/>
     /// which indicates the state of the dll being loaded. Please treat this parameter as readonly.
+    /// <br/><inheritdoc cref="TriggerAttribute"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
     public class NativeDllLoadedTriggerAttribute : TriggerAttribute
@@ -56,6 +64,7 @@ namespace UnityNativeTool
     /// Methods with this attribute are called directly before a native DLL is going to be unloaded.
     /// Such method must be <see langword="static"/> and either have no parameters or one parameter of type <see cref="NativeDll"/>
     /// which indicates the state of the dll being unloaded. Please treat this parameter as readonly.
+    /// <br/><inheritdoc cref="TriggerAttribute"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
     public class NativeDllBeforeUnloadTriggerAttribute : TriggerAttribute
@@ -67,6 +76,7 @@ namespace UnityNativeTool
     /// Methods with this attribute are called directly after a native DLL has been unloaded.
     /// Such method must be <see langword="static"/> and either have no parameters or one parameter of type <see cref="NativeDll"/>
     /// which indicates the state of the dll being unloaded. Please treat this parameter as readonly.
+    /// <br/><inheritdoc cref="TriggerAttribute"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
     public class NativeDllAfterUnloadTriggerAttribute : TriggerAttribute
