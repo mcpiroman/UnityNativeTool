@@ -63,7 +63,7 @@ namespace UnityNativeTool.Internal
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
-        private string[] _allKnownAssemblies = null;
+        private string[] _possibleTargetAssemblies = null;
         private DateTime _lastKnownAssembliesRefreshTime;
 
         /// <summary>
@@ -230,8 +230,8 @@ namespace UnityNativeTool.Internal
                 var prevIndent1 = EditorGUI.indentLevel;
                 EditorGUI.indentLevel++;
 
-                if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
-                    RefreshAllKnownAssemblies();
+                if (_possibleTargetAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
+                    RefreshPossibleTargetAssemblies();
                 
                 if (options.assemblyNames.Count == 0)
                     options.assemblyNames.AddRange(DllManipulator.DEFAULT_ASSEMBLY_NAMES);
@@ -248,16 +248,16 @@ namespace UnityNativeTool.Internal
 
                             // Show a pop up for quickly selecting an assembly
                             var selectedId = EditorGUILayout.Popup(0,
-                                new[] {"Find"}.Concat(_allKnownAssemblies).ToArray(), GUILayout.Width(80));
+                                new[] {"Find"}.Concat(_possibleTargetAssemblies).ToArray(), GUILayout.Width(80));
 
                             if (selectedId > 0)
-                                result = _allKnownAssemblies[selectedId - 1];
+                                result = _possibleTargetAssemblies[selectedId - 1];
                             return result;
                         }, true, () => "",
                         () =>
                         {
                             options.assemblyNames = options.assemblyNames
-                                .Concat(_allKnownAssemblies).Distinct().ToList();
+                                .Concat(_possibleTargetAssemblies).Distinct().ToList();
                         });
 
                     EditorGUI.indentLevel = prevIndent2;
@@ -304,10 +304,10 @@ namespace UnityNativeTool.Internal
         }
 
         /// <summary>
-        /// Will search for all managed assemblies and store them in <see cref="_allKnownAssemblies"/>.
+        /// Will search for all managed assemblies and store them in <see cref="_possibleTargetAssemblies"/>.
         /// Excludes assemblies starting with <see cref="DllManipulator.IGNORED_ASSEMBLY_PREFIXES"/>
         /// </summary>
-        private void RefreshAllKnownAssemblies()
+        private void RefreshPossibleTargetAssemblies()
         {
             var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
                 .Select(a => Path.GetFileNameWithoutExtension(a.outputPath));
@@ -319,7 +319,7 @@ namespace UnityNativeTool.Internal
                 .Where(p => !p.isNativePlugin)
                 .Select(p => Path.GetFileNameWithoutExtension(p.assetPath));
 
-            _allKnownAssemblies = playerCompiledAssemblies
+            _possibleTargetAssemblies = playerCompiledAssemblies
                 .Concat(editorCompiledAssemblies)
                 .Concat(assemblyAssets)
                 .Where(a => !DllManipulator.IGNORED_ASSEMBLY_PREFIXES.Any(a.StartsWith))

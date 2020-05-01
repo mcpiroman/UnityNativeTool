@@ -22,9 +22,9 @@ namespace UnityNativeTool.Internal
             , "Assembly-CSharp-Editor"
             #endif
         };
-        public static readonly string[] INTERNAL_ASSEMBLY_NAMES = {"MCpiroman.UnityNativeTool"
+        public static readonly string[] INTERNAL_ASSEMBLY_NAMES = {"mcpiroman.UnityNativeTool"
             #if UNITY_EDITOR
-            , "MCpiroman.UnityNativeTool.Editor"
+            , "mcpiroman.UnityNativeTool.Editor"
             #endif
         };
         public static readonly string[] IGNORED_ASSEMBLY_PREFIXES = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
@@ -67,8 +67,8 @@ namespace UnityNativeTool.Internal
             assemblyPathsTemp = assemblyPathsTemp.Concat(INTERNAL_ASSEMBLY_NAMES);
             
             var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-            var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.ChangeExtension(a.ManifestModule.Name, null))).ToArray();
-            var missingAssemblies = assemblyPathsTemp.Except(assemblies.Select(a => Path.ChangeExtension(a.ManifestModule.Name, null)));
+            var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.GetFileNameWithoutExtension(a.Location))).ToArray();
+            var missingAssemblies = assemblyPathsTemp.Except(assemblies.Select(a => Path.GetFileNameWithoutExtension(a.Location)));
             foreach (var assembly in missingAssemblies.Except(DEFAULT_ASSEMBLY_NAMES))
             {
                 Debug.LogError($"Could not find assembly: {assembly}");
@@ -654,11 +654,11 @@ namespace UnityNativeTool.Internal
 
         private static IntPtr SysLoadDll(string filepath)
         {
-#if UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlopen(filepath, (int)Options.posixDlopenFlags);
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlopen(filepath, (int)Options.posixDlopenFlags);
-#else // UNITY_STANDALONE_WIN
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.LoadLibrary(filepath);
 #endif
         }
@@ -669,7 +669,7 @@ namespace UnityNativeTool.Internal
             return PInvokes_Linux.dlclose(libHandle) == 0;
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlclose(libHandle) == 0;
-#else // UNITY_STANDALONE_WIN
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.FreeLibrary(libHandle);
 #endif
         }
@@ -680,7 +680,7 @@ namespace UnityNativeTool.Internal
             return PInvokes_Linux.dlsym(libHandle, symbol);
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlsym(libHandle, symbol);
-#else // UNITY_STANDALONE_WIN
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.GetProcAddress(libHandle, symbol);
 #endif
         }

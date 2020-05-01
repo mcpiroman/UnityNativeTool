@@ -1,7 +1,7 @@
 {
-    "name": "MCpiroman.UnityNativeTool.Editor",
+    "name": "mcpiroman.UnityNativeTool.Editor",
     "references": [
-        "MCpiroman.UnityNativeTool"
+        "mcpiroman.UnityNativeTool"
     ],
     "includePlatforms": [
         "Editor"
