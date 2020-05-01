@@ -503,7 +503,7 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.loadingError = true;
-                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        DispatchOnMainThread(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
                         throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
@@ -529,7 +529,7 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.symbolError = true;
-                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        DispatchOnMainThread(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
                         throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
@@ -567,6 +567,18 @@ namespace UnityNativeTool.Internal
                 else
                     methodInfo.Invoke(null, args);
             }
+        }
+        
+        /// <summary>
+        /// Ensure the action is executed on the main thread. Executes immediately if on the main thread already,
+        /// otherwise the action is added to a queue <see cref="DllManipulatorScript.MainThreadTriggerQueue"/>
+        /// </summary>
+        private static void DispatchOnMainThread(Action action)
+        {
+            if(Thread.CurrentThread.ManagedThreadId == _unityMainThreadId)
+                action();
+            else
+                DllManipulatorScript.MainThreadTriggerQueue.Enqueue(action);
         }
 
         /// <summary>
