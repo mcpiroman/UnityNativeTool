@@ -20,14 +20,14 @@ namespace UnityNativeTool
         public DllManipulatorOptions Options = new DllManipulatorOptions()
         {
             dllPathPattern =
-#if UNITY_STANDALONE_WIN
-            "{assets}/Plugins/__{name}.dll",
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             "{assets}/Plugins/__{name}.so",
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             "{assets}/Plugins/__{name}.dylib",
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+                "{assets}/Plugins/__{name}.dll",
 #endif
-            assemblyPaths = new string[0],
+            assemblyNames = new List<string>(),
             loadingMode = DllLoadingMode.Lazy,
             posixDlopenFlags = PosixDlopenFlags.Lazy,
             threadSafe = false,

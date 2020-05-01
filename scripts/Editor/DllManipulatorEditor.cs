@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
@@ -14,19 +14,21 @@ namespace UnityNativeTool.Internal
     [CustomEditor(typeof(DllManipulatorScript))]
     public class DllManipulatorEditor : Editor
     {
+        private static readonly string INFO_BOX_GUI_CONTENT = 
+            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy.";
         private static readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
             "If true, all found native functions will be mocked.\n\n" +
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
-        private static readonly GUIContent TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT = new GUIContent("Only executing assembly",
-            "If true, native functions will be mocked only in assembly that contains DllManipulator (usually Assembly-CSharp)");
-        private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in editor",
+        private static readonly GUIContent ONLY_ASSEMBLY_CSHARP_GUI_CONTENT = new GUIContent("Only Assembly-CSharp(-Editor)",
+            "If true, native functions will be mocked only in Assembly-CSharp and Assembly-CSharp-Editor. Alternatively enter a list of assembly names.");
+        private static readonly GUIContent ONLY_IN_EDITOR = new GUIContent("Only in Editor",
             "Whether to run only inside editor (which is recommended).");
         private static readonly GUIContent ENABLE_IN_EDIT_MODE = new GUIContent("Enable in Edit Mode",
             "Should the DLLs also be mocked in edit mode (i.e. even if you don't hit 'play' in editor). " +
             "Turning this off when not needed improves performance when entering edit mode. " +
             "Changes are currently only visible on the next time edit mode is entered (i.e. when OnEnable is called so hit 'play' then 'stop' to apply).");
         private static readonly GUIContent TARGET_ASSEMBLIES_GUI_CONTENT = new GUIContent("Target assemblies",
-            "Choose from which assemblies to mock native functions");
+            "List of assembly names to mock native functions in (no file extension).");
         private static readonly GUIContent DLL_PATH_PATTERN_GUI_CONTENT = new GUIContent("DLL path pattern", 
             "Available macros:\n\n" +
             $"{DllManipulator.DLL_PATH_PATTERN_DLL_NAME_MACRO} - name of DLL as specified in [DllImport] attribute.\n\n" +
@@ -57,11 +59,11 @@ namespace UnityNativeTool.Internal
             "Use only if you are sure no other thread will be call mocked natives.");
         private static readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
             "Use only if you are sure no other thread will be call mocked natives.");
-        private static readonly TimeSpan ASSEMBLIES_REFRESH_INTERVAL = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan ASSEMBLIES_REFRESH_INTERVAL = TimeSpan.FromSeconds(5);
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
-        private string[] _allKnownAssemblies = null;
+        private string[] _possibleTargetAssemblies = null;
         private DateTime _lastKnownAssembliesRefreshTime;
 
         /// <summary>
@@ -87,6 +89,8 @@ namespace UnityNativeTool.Internal
         public override void OnInspectorGUI()
         {
             var t = (DllManipulatorScript)this.target;
+
+            EditorGUILayout.HelpBox(INFO_BOX_GUI_CONTENT, MessageType.Info);
 
             DrawOptions(t.Options);
             EditorGUILayout.Space();
@@ -205,49 +209,32 @@ namespace UnityNativeTool.Internal
         private void DrawOptions(DllManipulatorOptions options)
         {
             var guiEnabledStack = new Stack<bool>();
-
             guiEnabledStack.Push(GUI.enabled);
             if (EditorApplication.isPlaying)
                 GUI.enabled = false;
+     
+            options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
+            options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
+
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField("Managed Side", EditorStyles.boldLabel);
+
             options.mockAllNativeFunctions = EditorGUILayout.Toggle(TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT, options.mockAllNativeFunctions);
 
-            if (EditorGUILayout.Toggle(TARGET_ONLY_EXECUTING_ASSEMBLY_GUI_CONTENT, options.assemblyPaths.Length == 0))
+            if (EditorGUILayout.Toggle(ONLY_ASSEMBLY_CSHARP_GUI_CONTENT, options.assemblyNames.Count == 0))
             {
-                options.assemblyPaths = new string[0];
+                options.assemblyNames.Clear();
             }
             else
             {
                 var prevIndent1 = EditorGUI.indentLevel;
                 EditorGUI.indentLevel++;
 
-                if (_allKnownAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
-                {
-                    var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
-                        .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
-
-                    var editorCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor)
-                       .Select(a => PathUtils.NormallizeUnityAssemblyPath(a.outputPath));
-
-                    var assemblyAssets = Resources.FindObjectsOfTypeAll<PluginImporter>()
-                        .Where(p => !p.isNativePlugin)
-                        .Select(p => PathUtils.NormallizeUnityAssemblyPath(p.assetPath));
-
-                    string[] defaultAssemblyPrefixes = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
-                    
-                    _allKnownAssemblies = playerCompiledAssemblies
-                        .Concat(assemblyAssets)
-                        .Concat(editorCompiledAssemblies)
-                        .OrderBy(path => Array.FindIndex(defaultAssemblyPrefixes, p => path.Substring(path.LastIndexOf('/') + 1).StartsWith(p)))
-                        .ToArray();
-                    _lastKnownAssembliesRefreshTime = DateTime.Now;
-                }
-
-                if (options.assemblyPaths.Length == 0)
-                {
-                    var first = GetFirstAssemblyToList(_allKnownAssemblies);
-                    if(first != null)
-                        options.assemblyPaths = new[] { first };
-                }
+                if (_possibleTargetAssemblies == null || _lastKnownAssembliesRefreshTime + ASSEMBLIES_REFRESH_INTERVAL < DateTime.Now)
+                    RefreshPossibleTargetAssemblies();
+                
+                if (options.assemblyNames.Count == 0)
+                    options.assemblyNames.AddRange(DllManipulator.DEFAULT_ASSEMBLY_NAMES);
 
                 _showTargetAssemblies = EditorGUILayout.Foldout(_showTargetAssemblies, TARGET_ASSEMBLIES_GUI_CONTENT);
                 if (_showTargetAssemblies)
@@ -255,19 +242,23 @@ namespace UnityNativeTool.Internal
                     var prevIndent2 = EditorGUI.indentLevel;
                     EditorGUI.indentLevel++;
 
-                    var selectedAssemblies = options.assemblyPaths.Where(p => _allKnownAssemblies.Any(a => PathUtils.DllPathsEqual(a, p))).ToList();
-                    var notSelectedAssemblies = _allKnownAssemblies.Except(selectedAssemblies).ToArray();
-                    DrawList(selectedAssemblies, i =>
-                    {
-                        var values = new[] { selectedAssemblies[i] }
-                            .Concat(notSelectedAssemblies)
-                            .Select(a => a.Substring(a.LastIndexOf('/') + 1))
-                            .ToArray();
+                    DrawList(options.assemblyNames, i =>
+                        {
+                            var result = EditorGUILayout.TextField(options.assemblyNames[i]);
 
-                        var selectedIndex = EditorGUILayout.Popup(0, values);
-                        return selectedIndex == 0 ? selectedAssemblies[i] : notSelectedAssemblies[selectedIndex - 1];
-                    }, notSelectedAssemblies.Length > 0, () => notSelectedAssemblies[0]);
-                    options.assemblyPaths = selectedAssemblies.ToArray();
+                            // Show a pop up for quickly selecting an assembly
+                            var selectedId = EditorGUILayout.Popup(0,
+                                new[] {"Find"}.Concat(_possibleTargetAssemblies).ToArray(), GUILayout.Width(80));
+
+                            if (selectedId > 0)
+                                result = _possibleTargetAssemblies[selectedId - 1];
+                            return result;
+                        }, true, () => "",
+                        () =>
+                        {
+                            options.assemblyNames = options.assemblyNames
+                                .Concat(_possibleTargetAssemblies).Distinct().ToList();
+                        });
 
                     EditorGUI.indentLevel = prevIndent2;
                 }
@@ -275,9 +266,8 @@ namespace UnityNativeTool.Internal
                 EditorGUI.indentLevel = prevIndent1;
             }
 
-            options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
-            
-            options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField("Native Side", EditorStyles.boldLabel);
 
             options.dllPathPattern = EditorGUILayout.TextField(DLL_PATH_PATTERN_GUI_CONTENT, options.dllPathPattern);
             
@@ -313,7 +303,32 @@ namespace UnityNativeTool.Internal
             GUI.enabled = guiEnabledStack.Pop();
         }
 
-        private void DrawList<T>(IList<T> elements, Func<int, T> drawElement, bool canAddNewElement, Func<T> getNewElement)
+        /// <summary>
+        /// Will search for all managed assemblies and store them in <see cref="_possibleTargetAssemblies"/>.
+        /// Excludes assemblies starting with <see cref="DllManipulator.IGNORED_ASSEMBLY_PREFIXES"/>
+        /// </summary>
+        private void RefreshPossibleTargetAssemblies()
+        {
+            var playerCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Player)
+                .Select(a => Path.GetFileNameWithoutExtension(a.outputPath));
+
+            var editorCompiledAssemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor)
+                .Select(a => Path.GetFileNameWithoutExtension(a.outputPath));
+
+            var assemblyAssets = Resources.FindObjectsOfTypeAll<PluginImporter>()
+                .Where(p => !p.isNativePlugin)
+                .Select(p => Path.GetFileNameWithoutExtension(p.assetPath));
+
+            _possibleTargetAssemblies = playerCompiledAssemblies
+                .Concat(editorCompiledAssemblies)
+                .Concat(assemblyAssets)
+                .Where(a => !DllManipulator.IGNORED_ASSEMBLY_PREFIXES.Any(a.StartsWith))
+                .OrderBy(name => name)
+                .ToArray();
+            _lastKnownAssembliesRefreshTime = DateTime.Now;
+        }
+
+        private void DrawList<T>(IList<T> elements, Func<int, T> drawElement, bool canAddNewElement, Func<T> getNewElement, Action addAll)
         {
             int indexToRemove = -1;
             for (int i = 0; i < elements.Count; i++)
@@ -334,8 +349,16 @@ namespace UnityNativeTool.Internal
             GUILayout.Space(EditorGUI.indentLevel * 15);
             var prevGuiEnabled = GUI.enabled;
             GUI.enabled = prevGuiEnabled && canAddNewElement;
+            
             if (GUILayout.Button("Add", GUILayout.Width(40)))
                 elements.Add(getNewElement());
+
+            if (GUILayout.Button("Add All", GUILayout.Width(80)))
+                addAll();
+            
+            if (GUILayout.Button("Reset", GUILayout.Width(50)))
+                elements.Clear();
+
             GUI.enabled = prevGuiEnabled;
             GUILayout.EndHorizontal();
         }

@@ -1,0 +1,16 @@
+{
+  "name": "com.mcpiroman.unity-native-tool",
+  "displayName": "Unity Native Tool",
+  "version": "7.1.0",
+  "description": "Tool for unloading native DLLs in the editor. \nhttps://github.com/mcpiroman/UnityNativeTool",
+  "keywords": [
+    "native",
+    "c++",
+    "dll"
+  ],
+  "category": "Unity",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcpiroman/UnityNativeTool.git"
+  }
+}

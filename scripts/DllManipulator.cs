@@ -17,6 +17,18 @@ namespace UnityNativeTool.Internal
         public const string DLL_PATH_PATTERN_ASSETS_MACRO = "{assets}";
         public const string DLL_PATH_PATTERN_PROJECT_MACRO = "{proj}";
         private const string CRASH_FILE_NAME_PREFIX = "unityNativeCrash_";
+        public static readonly string[] DEFAULT_ASSEMBLY_NAMES = {"Assembly-CSharp"
+            #if UNITY_EDITOR
+            , "Assembly-CSharp-Editor"
+            #endif
+        };
+        public static readonly string[] INTERNAL_ASSEMBLY_NAMES = {"mcpiroman.UnityNativeTool"
+            #if UNITY_EDITOR
+            , "mcpiroman.UnityNativeTool.Editor"
+            #endif
+        };
+        public static readonly string[] IGNORED_ASSEMBLY_PREFIXES = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
+
 
         public static DllManipulatorOptions Options { get; set; }
         private static int _unityMainThreadId;
@@ -48,20 +60,18 @@ namespace UnityNativeTool.Internal
 
             LowLevelPluginManager.ResetStubPlugin();
 
-            Assembly[] assemblies;
-            if (Options.assemblyPaths.Length == 0)
+            IEnumerable<string> assemblyPathsTemp = Options.assemblyNames;
+            if (!assemblyPathsTemp.Any())
+                assemblyPathsTemp = DEFAULT_ASSEMBLY_NAMES;
+            
+            assemblyPathsTemp = assemblyPathsTemp.Concat(INTERNAL_ASSEMBLY_NAMES);
+            
+            var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var assemblies = allAssemblies.Where(a => !a.IsDynamic && assemblyPathsTemp.Any(p => p == Path.GetFileNameWithoutExtension(a.Location))).ToArray();
+            var missingAssemblies = assemblyPathsTemp.Except(assemblies.Select(a => Path.GetFileNameWithoutExtension(a.Location)));
+            foreach (var assembly in missingAssemblies.Except(DEFAULT_ASSEMBLY_NAMES))
             {
-                assemblies = new[] { Assembly.GetExecutingAssembly() };
-            }
-            else
-            {
-                var allAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-                assemblies = allAssemblies.Where(a => !a.IsDynamic && Options.assemblyPaths.Any(p => p == PathUtils.NormallizeSystemAssemblyPath(a.Location))).ToArray();
-                var missingAssemblies = Options.assemblyPaths.Except(assemblies.Select(a => PathUtils.NormallizeSystemAssemblyPath(a.Location)));
-                foreach (var assemblyPath in missingAssemblies)
-                {
-                    Debug.LogError($"Could not find assembly at path {assemblyPath}");
-                }
+                Debug.LogError($"Could not find assembly: {assembly}");
             }
 
             foreach (var assembly in assemblies)
@@ -644,34 +654,34 @@ namespace UnityNativeTool.Internal
 
         private static IntPtr SysLoadDll(string filepath)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.LoadLibrary(filepath);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlopen(filepath, (int)Options.posixDlopenFlags);
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlopen(filepath, (int)Options.posixDlopenFlags);
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            return PInvokes_Windows.LoadLibrary(filepath);
 #endif
         }
 
         private static bool SysUnloadDll(IntPtr libHandle)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.FreeLibrary(libHandle);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlclose(libHandle) == 0;
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlclose(libHandle) == 0;
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            return PInvokes_Windows.FreeLibrary(libHandle);
 #endif
         }
 
         private static IntPtr SysGetDllProcAddress(IntPtr libHandle, string symbol)
         {
-#if UNITY_STANDALONE_WIN
-            return PInvokes_Windows.GetProcAddress(libHandle, symbol);
-#elif UNITY_STANDALONE_LINUX
+#if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
             return PInvokes_Linux.dlsym(libHandle, symbol);
-#elif UNITY_STANDALONE_OSX
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             return PInvokes_Osx.dlsym(libHandle, symbol);
+#elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            return PInvokes_Windows.GetProcAddress(libHandle, symbol);
 #endif
         }
     }
@@ -680,7 +690,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorOptions
     {
         public string dllPathPattern;
-        public string[] assemblyPaths; //empty means only executing assembly
+        public List<string> assemblyNames; // empty means only default assemblies
         public DllLoadingMode loadingMode;
         public PosixDlopenFlags posixDlopenFlags;
         public bool threadSafe;
@@ -694,7 +704,7 @@ namespace UnityNativeTool.Internal
         public DllManipulatorOptions CloneTo(DllManipulatorOptions other)
         {
             other.dllPathPattern = dllPathPattern;
-            other.assemblyPaths = (string[]) assemblyPaths.Clone();
+            other.assemblyNames = assemblyNames.Select(item => (string)item.Clone()).ToList();
             other.loadingMode = loadingMode;
             other.posixDlopenFlags = posixDlopenFlags;
             other.threadSafe = threadSafe;
@@ -710,7 +720,7 @@ namespace UnityNativeTool.Internal
 
         public bool Equals(DllManipulatorOptions other)
         {
-            return other.dllPathPattern == dllPathPattern && other.assemblyPaths.SequenceEqual(assemblyPaths) &&
+            return other.dllPathPattern == dllPathPattern && other.assemblyNames.SequenceEqual(assemblyNames) &&
                    other.loadingMode == loadingMode && other.posixDlopenFlags == posixDlopenFlags &&
                    other.threadSafe == threadSafe && other.enableCrashLogs == enableCrashLogs &&
                    other.crashLogsDir == crashLogsDir && other.crashLogsStackTrace == crashLogsStackTrace &&
