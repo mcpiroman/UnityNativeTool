@@ -60,6 +60,7 @@ namespace UnityNativeTool
             if(EditorApplication.isPlaying || Options.enableInEditMode)
                 Initialize();
             
+            // Ensure update is called every frame in edit mode, ExecuteInEditMode only calls Update when the scene changes
             if(!EditorApplication.isPlaying && Options.enableInEditMode)
                 EditorApplication.update += Update;
 

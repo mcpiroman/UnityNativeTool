@@ -65,7 +65,7 @@ namespace UnityNativeTool.Internal
         private DateTime _lastKnownAssembliesRefreshTime;
 
         /// <summary>
-        /// To check if the options have change in order to set the object as dirty
+        /// Used to check if the options have changed, in order to set the object as dirty so changes are saved
         /// </summary>
         private DllManipulatorOptions _prevOptions = new DllManipulatorOptions();
         
@@ -80,6 +80,7 @@ namespace UnityNativeTool.Internal
         
         private void Awake()
         {
+            // Immediately copy the Options to the previous so we don't need to check for null later
             ((DllManipulatorScript)target).Options.CloneTo(_prevOptions);
         }
 
@@ -162,6 +163,8 @@ namespace UnityNativeTool.Internal
             {
                 if (!t.Options.Equals(_prevOptions))
                 {
+                    // If the options have changed then update the _prevOptions and notify there are changes to be saved
+                    // CloneTo is used to ensure a deep copy is made
                     t.Options.CloneTo(_prevOptions);
                     EditorUtility.SetDirty(target);
                 }
