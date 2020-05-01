@@ -49,9 +49,11 @@ namespace UnityNativeTool
     }
     
     /// <summary>
-    /// Methods with this attribute are called directly after a native DLL has been loaded.
+    /// Methods with this attribute are called directly after a native DLL has been loaded. Native functions can be used within such a method.
+    /// This is called after <c>UnityPluginLoad</c>.<br/>
     /// Such method must be <see langword="static"/> and either have no parameters or one parameter of type <see cref="NativeDll"/>
-    /// which indicates the state of the dll being loaded. Please treat this parameter as readonly.
+    /// which indicates the state of the dll being loaded. Please treat this parameter as readonly.<br/>
+    /// Preloaded: only called once all native methods have been loaded. 
     /// <br/><inheritdoc cref="TriggerAttribute"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
