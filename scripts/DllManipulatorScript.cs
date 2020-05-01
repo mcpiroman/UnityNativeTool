@@ -58,8 +58,11 @@ namespace UnityNativeTool
                 DontDestroyOnLoad(gameObject);
 
             if(EditorApplication.isPlaying || Options.enableInEditMode)
+            {
                 Initialize();
-            
+                AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+            }
+
             // Ensure update is called every frame in edit mode, ExecuteInEditMode only calls Update when the scene changes
             if(!EditorApplication.isPlaying && Options.enableInEditMode)
                 EditorApplication.update += Update;
@@ -127,10 +130,31 @@ namespace UnityNativeTool
         }
 
 #if UNITY_EDITOR
+        private bool _isRecompiling;
+        /// <summary>
+        /// Called when Assemblies are reloaded due to recompilation.
+        /// Called before OnDisable.
+        /// </summary>
+        private void OnBeforeAssemblyReload()
+        {
+            _isRecompiling = true;
+        }
+        
         private void OnDisable()
         {
             if(_singletonInstance == this && !EditorApplication.isPlaying && Options.enableInEditMode)
+            {
                 EditorApplication.update -= Update;
+                AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+                
+                // When recompiling OnDestroy is not called by default (the object is not really destroyed)
+                // Manually trigger OnDestroy to clean up if we are disabled because of recompilation
+                if (_isRecompiling)
+                {
+                    _isRecompiling = false;
+                    OnDestroy();
+                }
+            }
         }
 #endif
 
