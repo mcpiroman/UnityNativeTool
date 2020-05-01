@@ -42,10 +42,11 @@ namespace UnityNativeTool.Internal
         private static List<NativeFunction> _mockedNativeFunctions = new List<NativeFunction>();
         private static int _createdDelegateTypes = 0;
         private static int _lastNativeCallIndex = 0; //Use with synchronization
-        private static List<MethodInfo> _customLoadedTriggers = null;
-        private static List<MethodInfo> _customBeforeUnloadTriggers = null;
-        private static List<MethodInfo> _customAfterUnloadTriggers = null;
-
+        
+        private static List<Tuple<MethodInfo, bool>> _customLoadedTriggers = null; //List of callbacks to run, whether to run them on the main thread.
+        private static List<Tuple<MethodInfo, bool>> _customBeforeUnloadTriggers = null;
+        private static List<Tuple<MethodInfo, bool>> _customAfterUnloadTriggers = null;
+        
         /// <summary>
         /// Initialization.
         /// Finds and mocks relevant native function declarations.
@@ -91,17 +92,16 @@ namespace UnityNativeTool.Internal
                             if (Options.mockAllNativeFunctions || method.IsDefined(typeof(MockNativeDeclarationAttribute)) || method.DeclaringType.IsDefined(typeof(MockNativeDeclarationsAttribute)))
                                 MockNativeFunction(method);
                         }
-                        else if(method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
+                        else
                         {
-                            RegisterTriggerMethod(method, ref _customLoadedTriggers);
-                        }
-                        else if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
-                        {
-                            RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers);
-                        }
-                        else if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
-                        {
-                            RegisterTriggerMethod(method, ref _customAfterUnloadTriggers);
+                            if (method.IsDefined(typeof(NativeDllLoadedTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customLoadedTriggers, method.GetCustomAttribute<NativeDllLoadedTriggerAttribute>());
+
+                            if (method.IsDefined(typeof(NativeDllBeforeUnloadTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customBeforeUnloadTriggers, method.GetCustomAttribute<NativeDllBeforeUnloadTriggerAttribute>());
+
+                            if (method.IsDefined(typeof(NativeDllAfterUnloadTriggerAttribute)))
+                                RegisterTriggerMethod(method, ref _customAfterUnloadTriggers, method.GetCustomAttribute<NativeDllAfterUnloadTriggerAttribute>());
                         }
                     }
                 }
@@ -111,18 +111,34 @@ namespace UnityNativeTool.Internal
                 LoadAll();
         }
 
-        private static void RegisterTriggerMethod(MethodInfo method, ref List<MethodInfo> triggersList)
+        /// <summary>
+        /// Will unload/forget all dll's and reset the state 
+        /// </summary>
+        public static void Reset()
+        {
+            UnloadAll();
+            ForgetAllDlls();
+            ClearCrashLogs();
+            
+            _customLoadedTriggers?.Clear();
+            _customAfterUnloadTriggers?.Clear();
+            _customBeforeUnloadTriggers?.Clear();
+        }
+
+        private static void RegisterTriggerMethod(MethodInfo method, ref List<Tuple<MethodInfo, bool>> triggersList, TriggerAttribute attribute)
         {
             var parameters = method.GetParameters();
-            if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll))
+            if (parameters.Length == 0 || parameters.Length == 1 && parameters[0].ParameterType == typeof(NativeDll)
+                                       || parameters.Length == 2 && parameters[0].ParameterType == typeof(NativeDll) && parameters[1].ParameterType == typeof(int))
             {
                 if (triggersList == null)
-                    triggersList = new List<MethodInfo>(2);
-                triggersList.Add(method);
+                    triggersList = new List<Tuple<MethodInfo, bool>>();
+                triggersList.Add(new Tuple<MethodInfo, bool>(method, attribute.UseMainThreadQueue));
             }
             else
             {
-                Debug.LogError($"Trigger method must either take no parameters or one parameter of type {nameof(NativeDll)}. Violation on method {method.Name} in {method.DeclaringType.FullName}");
+                Debug.LogError($"Trigger method must either take no parameters, one parameter of type {nameof(NativeDll)} or one of type {nameof(NativeDll)} and one int. " +
+                               $"See the TriggerAttribute for more details. Violation on method {method.Name} in {method.DeclaringType.FullName}");
             }
         }
 
@@ -142,6 +158,11 @@ namespace UnityNativeTool.Internal
                         {
                             LoadTargetFunction(nativeFunction, false);
                         }
+                        
+                        // Notify that the dll and its functions have been loaded in preload mode
+                        // This here allows use of native functions in the triggers
+                        if(Options.loadingMode == DllLoadingMode.Preload)
+                            InvokeCustomTriggers(_customLoadedTriggers, dll);
                     }
                 }
             }
@@ -491,8 +512,12 @@ namespace UnityNativeTool.Internal
                 else
                 {
                     dll.loadingError = false;
-                    InvokeCustomTriggers(_customLoadedTriggers, dll);
                     LowLevelPluginManager.OnDllLoaded(dll);
+                    
+                    // Call the custom triggers once UnityPluginLoad has been called
+                    // For Lazy mode call the triggers immediately, preload waits until all functions are loaded (in LoadAll)
+                    if(Options.loadingMode == DllLoadingMode.Lazy)
+                        InvokeCustomTriggers(_customLoadedTriggers, dll);
                 }
             }
 
@@ -519,17 +544,28 @@ namespace UnityNativeTool.Internal
             }
         }
 
-        private static void InvokeCustomTriggers(List<MethodInfo> triggers, NativeDll dll)
+        private static void InvokeCustomTriggers(List<Tuple<MethodInfo, bool>> triggers, NativeDll dll)
         {
             if (triggers == null)
                 return;
 
-            foreach(var triggerMethod in triggers)
+            foreach(var (methodInfo, useMainThreadQueue) in triggers)
             {
-                if (triggerMethod.GetParameters().Length == 1)
-                    triggerMethod.Invoke(null, new object[] { dll });
+                object[] args;
+                
+                // Determine args for method
+                if (methodInfo.GetParameters().Length == 2)
+                    args = new object[] { dll, _unityMainThreadId };
+                else if (methodInfo.GetParameters().Length == 1)
+                    args = new object[] { dll };
                 else
-                    triggerMethod.Invoke(null, Array.Empty<object>());
+                    args =  Array.Empty<object>();
+                
+                // Execute now or queue to the main thread
+                if (useMainThreadQueue && Thread.CurrentThread.ManagedThreadId != _unityMainThreadId)
+                    DllManipulatorScript.MainThreadTriggerQueue.Enqueue(() => methodInfo.Invoke(null, args));
+                else
+                    methodInfo.Invoke(null, args);
             }
         }
 
@@ -664,6 +700,33 @@ namespace UnityNativeTool.Internal
         public bool mockAllNativeFunctions;
         public bool onlyInEditor;
         public bool enableInEditMode;
+
+        public DllManipulatorOptions CloneTo(DllManipulatorOptions other)
+        {
+            other.dllPathPattern = dllPathPattern;
+            other.assemblyPaths = (string[]) assemblyPaths.Clone();
+            other.loadingMode = loadingMode;
+            other.posixDlopenFlags = posixDlopenFlags;
+            other.threadSafe = threadSafe;
+            other.enableCrashLogs = enableCrashLogs;
+            other.crashLogsDir = crashLogsDir;
+            other.crashLogsStackTrace = crashLogsStackTrace;
+            other.mockAllNativeFunctions = mockAllNativeFunctions;
+            other.onlyInEditor = onlyInEditor;
+            other.enableInEditMode = enableInEditMode;
+            
+            return other;
+        }
+
+        public bool Equals(DllManipulatorOptions other)
+        {
+            return other.dllPathPattern == dllPathPattern && other.assemblyPaths.SequenceEqual(assemblyPaths) &&
+                   other.loadingMode == loadingMode && other.posixDlopenFlags == posixDlopenFlags &&
+                   other.threadSafe == threadSafe && other.enableCrashLogs == enableCrashLogs &&
+                   other.crashLogsDir == crashLogsDir && other.crashLogsStackTrace == crashLogsStackTrace &&
+                   other.mockAllNativeFunctions == mockAllNativeFunctions && other.onlyInEditor == onlyInEditor &&
+                   other.enableInEditMode == enableInEditMode;
+        }
     }
 
     public enum DllLoadingMode

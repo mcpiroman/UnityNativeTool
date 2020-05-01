@@ -6,11 +6,14 @@ namespace UnityNativeTool.Internal
 {
     public class DllManipulatorWindowEditor : EditorWindow
     {
+        private static EditorWindow window;
+
         [MenuItem("Window/Dll manipulator")]
         static void Init()
         {
-            var window = GetWindow<DllManipulatorWindowEditor>();
+            window = GetWindow<DllManipulatorWindowEditor>();
             window.Show();
+            DllManipulatorEditor.RepaintAllEditors += window.Repaint;
         }
 
         void OnGUI()
