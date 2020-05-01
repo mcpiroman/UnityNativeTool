@@ -64,10 +64,24 @@ namespace UnityNativeTool.Internal
         private string[] _allKnownAssemblies = null;
         private DateTime _lastKnownAssembliesRefreshTime;
 
+        /// <summary>
+        /// Used to check if the options have changed, in order to set the object as dirty so changes are saved
+        /// </summary>
+        private DllManipulatorOptions _prevOptions = new DllManipulatorOptions();
+        
+        public static event Action RepaintAllEditors = delegate {};
+        
         public DllManipulatorEditor()
         {
             EditorApplication.pauseStateChanged += _ => Repaint();
             EditorApplication.playModeStateChanged += _ => Repaint();
+            RepaintAllEditors += Repaint;
+        }
+        
+        private void Awake()
+        {
+            // Immediately copy the Options to the previous so we don't need to check for null later
+            ((DllManipulatorScript)target).Options.CloneTo(_prevOptions);
         }
 
         public override void OnInspectorGUI()
@@ -114,9 +128,9 @@ namespace UnityNativeTool.Internal
 
 
                     bool unloadAll;
-                    if(EditorApplication.isPlaying && t.Options.threadSafe)
+                    if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.Options.threadSafe)
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT);
-                    else if (EditorApplication.isPlaying && !EditorApplication.isPaused && t.Options.loadingMode == DllLoadingMode.Preload)
+                    else if ((EditorApplication.isPlaying && !EditorApplication.isPaused || t.Options.enableInEditMode) && t.Options.loadingMode == DllLoadingMode.Preload)
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT);
                     else
                         unloadAll = GUILayout.Button("Unload all DLLs");
@@ -127,7 +141,7 @@ namespace UnityNativeTool.Internal
 
                 DrawUsedDlls(usedDlls);
             }
-            else if(EditorApplication.isPlaying)
+            else if(EditorApplication.isPlaying || t.Options.enableInEditMode)
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -136,12 +150,24 @@ namespace UnityNativeTool.Internal
                 GUILayout.EndHorizontal();
             }
 
-            if(EditorApplication.isPlaying && t.InitializationTime != null)
+            if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.InitializationTime != null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
                 var time = t.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
+            }
+
+            // Set the target as dirty so changes can be saved, if there are changes
+            if (GUI.changed)
+            {
+                if (!t.Options.Equals(_prevOptions))
+                {
+                    // If the options have changed then update the _prevOptions and notify there are changes to be saved
+                    // CloneTo is used to ensure a deep copy is made
+                    t.Options.CloneTo(_prevOptions);
+                    EditorUtility.SetDirty(target);
+                }
             }
         }
 
@@ -338,6 +364,13 @@ namespace UnityNativeTool.Internal
         public static void UnloadAll()
         {
             DllManipulator.UnloadAll();
+        }
+
+        [NativeDllLoadedTrigger(UseMainThreadQueue = true)]
+        [NativeDllAfterUnloadTrigger(UseMainThreadQueue = true)]
+        public static void RepaintAll()
+        {
+            RepaintAllEditors?.Invoke();
         }
     }
 }
