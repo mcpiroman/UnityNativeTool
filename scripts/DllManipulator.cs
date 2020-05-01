@@ -704,7 +704,7 @@ namespace UnityNativeTool.Internal
         public DllManipulatorOptions CloneTo(DllManipulatorOptions other)
         {
             other.dllPathPattern = dllPathPattern;
-            other.assemblyPaths = (string[]) assemblyPaths.Clone();
+            other.assemblyNames = assemblyNames.Select(item => (string)item.Clone()).ToList();
             other.loadingMode = loadingMode;
             other.posixDlopenFlags = posixDlopenFlags;
             other.threadSafe = threadSafe;
@@ -720,7 +720,7 @@ namespace UnityNativeTool.Internal
 
         public bool Equals(DllManipulatorOptions other)
         {
-            return other.dllPathPattern == dllPathPattern && other.assemblyPaths.SequenceEqual(assemblyPaths) &&
+            return other.dllPathPattern == dllPathPattern && other.assemblyNames.SequenceEqual(assemblyNames) &&
                    other.loadingMode == loadingMode && other.posixDlopenFlags == posixDlopenFlags &&
                    other.threadSafe == threadSafe && other.enableCrashLogs == enableCrashLogs &&
                    other.crashLogsDir == crashLogsDir && other.crashLogsStackTrace == crashLogsStackTrace &&
