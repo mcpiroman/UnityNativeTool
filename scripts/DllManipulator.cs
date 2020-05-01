@@ -503,7 +503,10 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.loadingError = true;
-                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        if (Thread.CurrentThread.ManagedThreadId == _unityMainThreadId) // Pause directly if on main thread, else add to queue
+                            Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        else
+                            DllManipulatorScript.MainThreadTriggerQueue.Enqueue(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
                         throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
@@ -529,7 +532,10 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.symbolError = true;
-                        Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        if (Thread.CurrentThread.ManagedThreadId == _unityMainThreadId) // Pause directly if on main thread, else add to queue
+                            Prop_EditorApplication_isPaused.Value?.SetValue(null, true);
+                        else
+                            DllManipulatorScript.MainThreadTriggerQueue.Enqueue(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
                         throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
