@@ -53,8 +53,11 @@ namespace UnityNativeTool.Internal
         /// If <see cref="DllLoadingMode.Preload"/> option is specified, loads all DLLs specified by these functions.
         /// Options have to be configured before calling this method.
         /// </summary>
-        internal static void Initialize(int unityMainThreadId, string assetsPath)
+        internal static void Initialize(DllManipulatorOptions options, int unityMainThreadId, string assetsPath)
         {
+            // Make a deep copy of the options so we can edit them in DllManipulatorScript independently
+            Options = new DllManipulatorOptions();
+            options.CloneTo(Options);
             _unityMainThreadId = unityMainThreadId;
             _assetsPath = assetsPath;
 
@@ -123,6 +126,8 @@ namespace UnityNativeTool.Internal
             _customLoadedTriggers?.Clear();
             _customAfterUnloadTriggers?.Clear();
             _customBeforeUnloadTriggers?.Clear();
+
+            Options = null;
         }
 
         private static void RegisterTriggerMethod(MethodInfo method, ref List<Tuple<MethodInfo, bool>> triggersList, TriggerAttribute attribute)

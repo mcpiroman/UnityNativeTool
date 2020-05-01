@@ -15,7 +15,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorEditor : Editor
     {
         private static readonly string INFO_BOX_GUI_CONTENT = 
-            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy.";
+            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy. Changes below are always applied at OnEnable.";
         private static readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
             "If true, all found native functions will be mocked.\n\n" +
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
@@ -56,10 +56,23 @@ namespace UnityNativeTool.Internal
         private static readonly GUIContent UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
             "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
         private static readonly GUIContent UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs [dangerous]",
-            "Use only if you are sure no other thread will be call mocked natives.");
+            "Use only if you are sure no other thread will call mocked natives.");
         private static readonly GUIContent UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT = new GUIContent("Unload all DLLs & Pause [dangerous]",
-            "Use only if you are sure no other thread will be call mocked natives.");
+            "Use only if you are sure no other thread will call mocked natives.");
         private static readonly TimeSpan ASSEMBLIES_REFRESH_INTERVAL = TimeSpan.FromSeconds(5);
+        
+        private static readonly GUIContent INITIALIZE_ENABLED_EDIT_MODE_GUI_CONTENT = new GUIContent(
+                "Apply Changes Now & Initialize",
+                "Start mocking native functions in edit mode immediately without waiting for OnEnable.");
+        private static readonly GUIContent REINITIALIZE_WITH_CHANGES_LAZY_GUI_CONTENT = new GUIContent(
+            "Unload, Apply Changes Now & Reinitialize",
+            "Changes made to the options above are only applied when play(/edit) mode is entered." +
+            " Use this to unload all Dlls and initialize with the new changes immediately.");
+        private static readonly GUIContent REINITIALIZE_WITH_CHANGES_PRELOADED_GUI_CONTENT = new GUIContent(
+            "Unload, Apply Changes Now & Reinitialize [Dangerous]",
+            "Changes made to the options above are only applied when play(/edit) mode is entered. " +
+            "Use this to unload all Dlls and initialize with the new changes immediately. " +
+            "Use only if you are sure no mocked native calls will be made while DLL is unloaded.");
 
         private bool _showLoadedLibraries = true;
         private bool _showTargetAssemblies = true;
@@ -93,12 +106,67 @@ namespace UnityNativeTool.Internal
             EditorGUILayout.HelpBox(INFO_BOX_GUI_CONTENT, MessageType.Info);
 
             DrawOptions(t.Options);
+
+            DetectOptionChanges(t);
+            
             EditorGUILayout.Space();
 
+            DrawCurrentState(t);
+        }
+
+        /// <summary>
+        /// Detects whether the <see cref="DllManipulatorScript.Options"/> have changed, both relative to the previous
+        /// options and the <see cref="DllManipulator.Options"/> if we are currently initialized.
+        /// </summary>
+        /// <param name="t">The OnInspectorGUI target</param>
+        private void DetectOptionChanges(DllManipulatorScript t)
+        {
+            // Set the target as dirty so changes can be saved, if there are changes
+            if (GUI.changed)
+            {
+                if (!t.Options.Equals(_prevOptions))
+                {
+                    // If the options have changed then update the _prevOptions and notify there are changes to be saved
+                    // CloneTo is used to ensure a deep copy is made
+                    t.Options.CloneTo(_prevOptions);
+                    EditorUtility.SetDirty(target);
+                }
+            }
+
+            // Allow Reinitializing DllManipulator if there are changes
+            if (DllManipulator.Options != null && !t.Options.Equals(DllManipulator.Options))
+            {
+                if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload)
+                {
+                    if (GUILayout.Button(REINITIALIZE_WITH_CHANGES_PRELOADED_GUI_CONTENT))
+                        t.Reinitialize();
+                }
+                else if(GUILayout.Button(REINITIALIZE_WITH_CHANGES_LAZY_GUI_CONTENT))
+                    t.Reinitialize();
+            }
+            
+            // When enabling enableInEditMode for the first time, allow immediately initializing without waiting for OnEnable
+            if(DllManipulator.Options == null && t.Options.enableInEditMode && !EditorApplication.isPlaying && 
+               GUILayout.Button(INITIALIZE_ENABLED_EDIT_MODE_GUI_CONTENT))
+            {
+                t.Reinitialize();
+            }
+        }
+
+        /// <summary>
+        /// Draws GUI related to the current state of the DllManipulator.
+        /// Buttons to load/unload Dlls as well as details about which Dlls are loaded
+        /// </summary>
+        /// <param name="t">The OnInspectorGUI target</param>
+        private void DrawCurrentState(DllManipulatorScript t)
+        {
+            if (DllManipulator.Options == null) // Exit if we have not initialized DllManipulator
+                return;
+            
             var usedDlls = DllManipulator.GetUsedDllsInfos();
             if (usedDlls.Count != 0)
             {
-                if(t.Options.loadingMode == DllLoadingMode.Preload && usedDlls.Any(d => !d.isLoaded))
+                if(DllManipulator.Options.loadingMode == DllLoadingMode.Preload && usedDlls.Any(d => !d.isLoaded))
                 {
                     if (EditorApplication.isPaused)
                     {
@@ -118,7 +186,7 @@ namespace UnityNativeTool.Internal
                     if (EditorApplication.isPlaying && !EditorApplication.isPaused)
                     {
                         bool pauseAndUnloadAll;
-                        if(t.Options.threadSafe)
+                        if(DllManipulator.Options.threadSafe)
                             pauseAndUnloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_AND_PAUSE_WITH_THREAD_SAFETY_GUI_CONTENT);
                         else
                             pauseAndUnloadAll = GUILayout.Button("Unload all DLLs & Pause");
@@ -132,9 +200,9 @@ namespace UnityNativeTool.Internal
 
 
                     bool unloadAll;
-                    if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.Options.threadSafe)
+                    if(DllManipulator.Options.threadSafe)
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_WITH_THREAD_SAFETY_GUI_CONTENT);
-                    else if ((EditorApplication.isPlaying && !EditorApplication.isPaused || t.Options.enableInEditMode) && t.Options.loadingMode == DllLoadingMode.Preload)
+                    else if (DllManipulator.Options.loadingMode == DllLoadingMode.Preload && (EditorApplication.isPlaying && !EditorApplication.isPaused || DllManipulator.Options.enableInEditMode))
                         unloadAll = GUILayout.Button(UNLOAD_ALL_DLLS_IN_PLAY_PRELOADED_GUI_CONTENT);
                     else
                         unloadAll = GUILayout.Button("Unload all DLLs");
@@ -145,7 +213,7 @@ namespace UnityNativeTool.Internal
 
                 DrawUsedDlls(usedDlls);
             }
-            else if(EditorApplication.isPlaying || t.Options.enableInEditMode)
+            else
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -154,24 +222,12 @@ namespace UnityNativeTool.Internal
                 GUILayout.EndHorizontal();
             }
 
-            if((EditorApplication.isPlaying || t.Options.enableInEditMode) && t.InitializationTime != null)
+            if (t.InitializationTime != null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
                 var time = t.InitializationTime.Value;
                 EditorGUILayout.LabelField($"Initialized in: {(int)time.TotalSeconds}.{time.Milliseconds.ToString("D3")}s");
-            }
-
-            // Set the target as dirty so changes can be saved, if there are changes
-            if (GUI.changed)
-            {
-                if (!t.Options.Equals(_prevOptions))
-                {
-                    // If the options have changed then update the _prevOptions and notify there are changes to be saved
-                    // CloneTo is used to ensure a deep copy is made
-                    t.Options.CloneTo(_prevOptions);
-                    EditorUtility.SetDirty(target);
-                }
             }
         }
 
@@ -210,8 +266,6 @@ namespace UnityNativeTool.Internal
         {
             var guiEnabledStack = new Stack<bool>();
             guiEnabledStack.Push(GUI.enabled);
-            if (EditorApplication.isPlaying)
-                GUI.enabled = false;
      
             options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
             options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);

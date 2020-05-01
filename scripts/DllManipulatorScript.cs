@@ -84,11 +84,28 @@ namespace UnityNativeTool
         {
             var initTimer = System.Diagnostics.Stopwatch.StartNew();
 
-            DllManipulator.Options = Options;
-            DllManipulator.Initialize(Thread.CurrentThread.ManagedThreadId, Application.dataPath);
+            DllManipulator.Initialize(Options, Thread.CurrentThread.ManagedThreadId, Application.dataPath);
 
             initTimer.Stop();
             InitializationTime = initTimer.Elapsed;
+        }
+
+        /// <summary>
+        /// Will reset the DllManipulator and Initialize it again.
+        /// Note: Unloads all Dlls, may be a dangerous operation if using preloaded
+        /// </summary>
+        public void Reinitialize()
+        {
+            if(_singletonInstance != this)
+                return;
+            
+            if (DllManipulator.Options != null)
+                DllManipulator.Reset();
+            
+#if UNITY_EDITOR
+            if(EditorApplication.isPlaying || Options.enableInEditMode)
+#endif
+                Initialize();
         }
         
         /// <summary>
@@ -112,7 +129,7 @@ namespace UnityNativeTool
 #if UNITY_EDITOR
         private void OnDisable()
         {
-            if(!EditorApplication.isPlaying && Options.enableInEditMode)
+            if(_singletonInstance == this && !EditorApplication.isPlaying && Options.enableInEditMode)
                 EditorApplication.update -= Update;
         }
 #endif
