@@ -133,6 +133,8 @@ namespace UnityNativeTool.Internal
                             LoadTargetFunction(nativeFunction, false);
                         }
                         
+                        // Notify that the dll and its functions have been loaded in preload mode
+                        // This here allows use of native functions in the triggers
                         if(Options.loadingMode == DllLoadingMode.Preload)
                             InvokeCustomTriggers(_customLoadedTriggers, dll);
                     }
@@ -485,6 +487,9 @@ namespace UnityNativeTool.Internal
                 {
                     dll.loadingError = false;
                     LowLevelPluginManager.OnDllLoaded(dll);
+                    
+                    // Call the custom triggers once UnityPluginLoad has been called
+                    // For Lazy mode call the triggers immediately, preload waits until all functions are loaded (in LoadAll)
                     if(Options.loadingMode == DllLoadingMode.Lazy)
                         InvokeCustomTriggers(_customLoadedTriggers, dll);
                 }
