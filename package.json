@@ -9,11 +9,6 @@
     "dll"
   ],
   "category": "Unity",
-  "author": {
-    "name": "John Doe",
-    "email": "john.doe@example.com",
-    "url": "https://github.com/mcpiroman/UnityNativeTool/"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/mcpiroman/UnityNativeTool.git"
