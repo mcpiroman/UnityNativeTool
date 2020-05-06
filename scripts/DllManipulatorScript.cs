@@ -160,7 +160,7 @@ namespace UnityNativeTool
                 Reset();
         }
 
-        public void Reset()
+        private void Reset()
         {
             //Note on threading: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
             //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
