@@ -30,7 +30,7 @@ namespace UnityNativeTool.Internal
         public static readonly string[] IGNORED_ASSEMBLY_PREFIXES = { "UnityEngine.", "UnityEditor.", "Unity.", "com.unity.", "Mono." , "nunit."};
 
 
-        public static DllManipulatorOptions Options { get; set; }
+        public static DllManipulatorOptions Options { get; private set; }
         private static int _unityMainThreadId;
         private static string _assetsPath;
         private static readonly LinkedList<object> _antiGcRefHolder = new LinkedList<object>();
