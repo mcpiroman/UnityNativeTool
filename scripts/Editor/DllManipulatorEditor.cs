@@ -15,7 +15,7 @@ namespace UnityNativeTool.Internal
     public class DllManipulatorEditor : Editor
     {
         private static readonly string INFO_BOX_GUI_CONTENT = 
-            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy. Changes below are always applied at OnEnable.";
+            "Mocks native functions to allow manually un/loading native DLLs. DLLs are always unloaded at OnDestroy. Configuration changes below are always applied at OnEnable.";
         private static readonly GUIContent TARGET_ALL_NATIVE_FUNCTIONS_GUI_CONTENT = new GUIContent("All native functions",
             "If true, all found native functions will be mocked.\n\n" +
             $"If false, you have to select them by using [{nameof(MockNativeDeclarationsAttribute)}] or [{nameof(MockNativeDeclarationAttribute)}].");
