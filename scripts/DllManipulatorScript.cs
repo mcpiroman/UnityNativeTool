@@ -58,8 +58,11 @@ namespace UnityNativeTool
                 DontDestroyOnLoad(gameObject);
 
             if(EditorApplication.isPlaying || Options.enableInEditMode)
+            {
                 Initialize();
-            
+                AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+            }
+
             // Ensure update is called every frame in edit mode, ExecuteInEditMode only calls Update when the scene changes
             if(!EditorApplication.isPlaying && Options.enableInEditMode)
                 EditorApplication.update += Update;
@@ -80,15 +83,28 @@ namespace UnityNativeTool
 #endif
         }
         
-        private void Initialize()
+        public void Initialize()
         {
             var initTimer = System.Diagnostics.Stopwatch.StartNew();
 
-            DllManipulator.Options = Options;
-            DllManipulator.Initialize(Thread.CurrentThread.ManagedThreadId, Application.dataPath);
+            DllManipulator.Initialize(Options, Thread.CurrentThread.ManagedThreadId, Application.dataPath);
 
             initTimer.Stop();
             InitializationTime = initTimer.Elapsed;
+        }
+
+        /// <summary>
+        /// Will reset the DllManipulator and Initialize it again.
+        /// Note: Unloads all Dlls, may be a dangerous operation if using preloaded
+        /// </summary>
+        public void Reinitialize()
+        {
+            DllManipulator.Reset();
+            
+#if UNITY_EDITOR
+            if(EditorApplication.isPlaying || Options.enableInEditMode)
+#endif
+                Initialize();
         }
         
         /// <summary>
@@ -110,25 +126,49 @@ namespace UnityNativeTool
         }
 
 #if UNITY_EDITOR
+        private bool _isRecompiling;
+        /// <summary>
+        /// Called when Assemblies are reloaded due to recompilation.
+        /// Called before OnDisable.
+        /// </summary>
+        private void OnBeforeAssemblyReload()
+        {
+            _isRecompiling = true;
+        }
+        
         private void OnDisable()
         {
-            if(!EditorApplication.isPlaying && Options.enableInEditMode)
+            if(_singletonInstance == this && !EditorApplication.isPlaying && Options.enableInEditMode)
+            {
                 EditorApplication.update -= Update;
+                AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+                
+                // When recompiling OnDestroy is not called by default (the object is not really destroyed)
+                // Manually trigger OnDestroy to clean up if we are disabled because of recompilation
+                if (_isRecompiling)
+                {
+                    _isRecompiling = false;
+                    Reset();
+                }
+            }
         }
 #endif
 
         private void OnDestroy()
         {
             if (_singletonInstance == this)
-            {
-                //Note on threading: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
-                //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
-                //Thankfully thread safety with Lazy mode is not implemented yet.
+                Reset();
+        }
 
-                if (DllManipulator.Options != null) // Check that we have initialized
-                    DllManipulator.Reset();
-                _singletonInstance = null;
-            }
+        private void Reset()
+        {
+            //Note on threading: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
+            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
+            //Thankfully thread safety with Lazy mode is not implemented yet.
+
+            if (DllManipulator.Options != null) // Check that we have initialized
+                DllManipulator.Reset();
+            _singletonInstance = null;
         }
     }
 }
