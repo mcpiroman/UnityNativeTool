@@ -142,14 +142,16 @@ namespace UnityNativeTool.Internal
                         t.Reinitialize();
                 }
                 else if(GUILayout.Button(REINITIALIZE_WITH_CHANGES_LAZY_GUI_CONTENT))
+                {
                     t.Reinitialize();
+                }
             }
             
             // When enabling enableInEditMode for the first time, allow immediately initializing without waiting for OnEnable
             if(DllManipulator.Options == null && t.Options.enableInEditMode && !EditorApplication.isPlaying && 
                GUILayout.Button(INITIALIZE_ENABLED_EDIT_MODE_GUI_CONTENT))
             {
-                t.Reinitialize();
+                t.Initialize();
             }
         }
 
@@ -264,9 +266,6 @@ namespace UnityNativeTool.Internal
 
         private void DrawOptions(DllManipulatorOptions options)
         {
-            var guiEnabledStack = new Stack<bool>();
-            guiEnabledStack.Push(GUI.enabled);
-     
             options.onlyInEditor = EditorGUILayout.Toggle(ONLY_IN_EDITOR, options.onlyInEditor);
             options.enableInEditMode = EditorGUILayout.Toggle(ENABLE_IN_EDIT_MODE, options.enableInEditMode);
 
@@ -331,14 +330,14 @@ namespace UnityNativeTool.Internal
             options.posixDlopenFlags = (PosixDlopenFlags)EditorGUILayout.EnumPopup(POSIX_DLOPEN_FLAGS_GUI_CONTENT, options.posixDlopenFlags);
 #endif
 
-            guiEnabledStack.Push(GUI.enabled);
+            var guiEnabled = GUI.enabled;
             if (options.loadingMode != DllLoadingMode.Preload)
             {
                 options.threadSafe = false;
                 GUI.enabled = false;
             }
             options.threadSafe = EditorGUILayout.Toggle(THREAD_SAFE_GUI_CONTENT, options.threadSafe);
-            GUI.enabled = guiEnabledStack.Pop();
+            GUI.enabled = guiEnabled;
 
             options.enableCrashLogs = EditorGUILayout.Toggle(CRASH_LOGS_GUI_CONTENT, options.enableCrashLogs);
 
@@ -353,8 +352,6 @@ namespace UnityNativeTool.Internal
 
                 EditorGUI.indentLevel = prevIndent;
             }
-
-            GUI.enabled = guiEnabledStack.Pop();
         }
 
         /// <summary>

@@ -83,7 +83,7 @@ namespace UnityNativeTool
 #endif
         }
         
-        private void Initialize()
+        public void Initialize()
         {
             var initTimer = System.Diagnostics.Stopwatch.StartNew();
 
@@ -99,11 +99,7 @@ namespace UnityNativeTool
         /// </summary>
         public void Reinitialize()
         {
-            if(_singletonInstance != this)
-                return;
-            
-            if (DllManipulator.Options != null)
-                DllManipulator.Reset();
+            DllManipulator.Reset();
             
 #if UNITY_EDITOR
             if(EditorApplication.isPlaying || Options.enableInEditMode)
@@ -152,7 +148,7 @@ namespace UnityNativeTool
                 if (_isRecompiling)
                 {
                     _isRecompiling = false;
-                    OnDestroy();
+                    Reset();
                 }
             }
         }
@@ -161,15 +157,18 @@ namespace UnityNativeTool
         private void OnDestroy()
         {
             if (_singletonInstance == this)
-            {
-                //Note on threading: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
-                //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
-                //Thankfully thread safety with Lazy mode is not implemented yet.
+                Reset();
+        }
 
-                if (DllManipulator.Options != null) // Check that we have initialized
-                    DllManipulator.Reset();
-                _singletonInstance = null;
-            }
+        public void Reset()
+        {
+            //Note on threading: Because we don't wait for other threads to finish, we might be stealing function delegates from under their nose if Unity doesn't happen to close them yet.
+            //On Preloaded mode this leads to NullReferenceException, but on Lazy mode the DLL and function would be just reloaded so we would up with loaded DLL after game exit.
+            //Thankfully thread safety with Lazy mode is not implemented yet.
+
+            if (DllManipulator.Options != null) // Check that we have initialized
+                DllManipulator.Reset();
+            _singletonInstance = null;
         }
     }
 }
