@@ -7,6 +7,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace UnityNativeTool.Internal
 {
@@ -508,7 +511,9 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.loadingError = true;
-                        DispatchOnMainThread(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
+#if UNITY_EDITOR
+                        DispatchOnMainThread(() => { EditorApplication.isPaused = true; });
+#endif
                         throw new NativeDllException($"Could not load DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
@@ -534,7 +539,9 @@ namespace UnityNativeTool.Internal
                     if (!ignoreLoadError)
                     {
                         dll.symbolError = true;
-                        DispatchOnMainThread(() => { Prop_EditorApplication_isPaused.Value?.SetValue(null, true); });
+#if UNITY_EDITOR
+                        DispatchOnMainThread(() => { EditorApplication.isPaused = true; });
+#endif
                         throw new NativeDllException($"Could not get address of symbol \"{nativeFunction.identity.symbol}\" in DLL \"{dll.name}\" at path \"{dll.path}\".");
                     }
 
