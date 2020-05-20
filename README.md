@@ -23,10 +23,7 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 3. Check _Allow 'unsafe' code_.  
    Edit > Project Settings > Player > Other Settings > Allow 'unsafe' code
 
-4. Set execution order of script `UnityNativeTool.DllManipulatorScript` to be the lowest of all scripts in game (at least of scripts that use native functions), e.g -10000.  
-   Edit > Project Settings > Script Execution Order
-
-5. One game object in the scene needs to have `DllManipulatorScript` on it. (This script calls `DontDestroayOnLoad(gameObject)` and deletes itself when duplicate is found, so you don't have to worry about switching scenes).
+4. One game object in the scene needs to have `DllManipulatorScript` on it. (This script calls `DontDestroayOnLoad(gameObject)` and deletes itself when duplicate is found, so you don't have to worry about switching scenes).
 
 ## Usage
 - Your plugin files must be at path specified in options. By default, add __ (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
@@ -44,6 +41,12 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 - Properties `ExactSpelling` and `PreserveSig` on `[DllImport]` attribute are not supported (as if anyone uses them).
 - `UnityRenderingExtEvent` and `UnityRenderingExtQuery` native callbacks don't fire.
 - Threads that execute past `OnApplicationQuit` event are not-very-well handled (usually not something to worry about).
+
+## Troubleshooting & advanced usage
+- The path in the `DLL path pattern` option cannot be simply be set to `{assets}/Plugins/{name}.dll` as it would interfer with Unity's plugin loading. (That's why you need to bother with these undersocres.)
+- Unity in version `2019.3.x` changed behaviour of building. If you want to use this tool in the builded game (although preferiably just for developement) you should store your plugins in architecture-specific subfolders and update the `DLL path pattern` option accordingly, e.g. `{assets}/Plugins/x86_64/__{name}.dll`.
+- The `UnityNativeTool.DllManipulatorScript` script by default has execution order of -10000 to make it run first. If you have a script that has even lower execution order and that scripts calls a DLL, then you should make sure that `UnityNativeTool.DllManipulatorScript` runs before it, e.g. by further lowering its execution order.
+
 
 ## Performance
 
