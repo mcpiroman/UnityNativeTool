@@ -25,7 +25,9 @@ namespace UnityNativeTool
 #elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
             "{assets}/Plugins/__{name}.dylib",
 #elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-                "{assets}/Plugins/__{name}.dll",
+            "{assets}/Plugins/__{name}.dll",
+#else
+            "",
 #endif
             assemblyNames = new List<string>(),
             loadingMode = DllLoadingMode.Lazy,

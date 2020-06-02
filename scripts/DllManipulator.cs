@@ -684,6 +684,8 @@ namespace UnityNativeTool.Internal
             return PInvokes_Osx.dlopen(filepath, (int)Options.posixDlopenFlags);
 #elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.LoadLibrary(filepath);
+#else
+            throw GetUnsupportedPlatformExcpetion();
 #endif
         }
 
@@ -695,6 +697,8 @@ namespace UnityNativeTool.Internal
             return PInvokes_Osx.dlclose(libHandle) == 0;
 #elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.FreeLibrary(libHandle);
+#else
+            throw GetUnsupportedPlatformExcpetion();
 #endif
         }
 
@@ -706,7 +710,14 @@ namespace UnityNativeTool.Internal
             return PInvokes_Osx.dlsym(libHandle, symbol);
 #elif UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             return PInvokes_Windows.GetProcAddress(libHandle, symbol);
+#else
+            throw GetUnsupportedPlatformExcpetion();
 #endif
+        }
+
+        private static Exception GetUnsupportedPlatformExcpetion()
+        {
+            return new PlatformNotSupportedException("This tool is intended to run only on x86 based desktop systems. If you want to use it on other platform, please file an issue. We'll see what can be done:).");
         }
     }
 
