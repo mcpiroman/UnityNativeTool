@@ -28,18 +28,19 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 ## Usage
 - Your plugin files must be at path specified in options. By default, add __ (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
 - By default, all native functions in main scripts assembly will be mocked (i.e. will be handled by this tool instead of Unity, which allows them to be unloaded). You can change this in options and use provided attributes to specify that yourself (these are in `UnityNativeTool`  namespace).
-- If something is not working, first check out available options (and read their descriptions), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 - Options are accessible via `DllManipulatorScript` editor or window.
-- Although this tool presumably works in built game, it's intended to be used in editor.
-- Get callbacks in C# when the dll load state has changed with attributes like `[NativeDllLoadedTrigger]`, see `Attributes.cs` for more information
+- You can get callbacks in C# when the dll load state has changed with attributes like `[NativeDllLoadedTrigger]`. See `Attributes.cs`.
 - Unload and load all DLLs via shortcut `Alt+D` and `Alt+Shfit+D` respectively. Editable in the Shortcut Manager for 2019.1+
+- Although this tool presumably works in built game, it's intended to be used only during developement.
+- If something is not working, first check out available options (and read their descriptions), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 
 ## Limitations
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
 - Properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` on `[MarshalAs]` attribute are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
 - Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be default for array types, so in trivial situations you wouldn't need to use it.
 - Properties `ExactSpelling` and `PreserveSig` on `[DllImport]` attribute are not supported (as if anyone uses them).
-- `UnityRenderingExtEvent` and `UnityRenderingExtQuery` native callbacks don't fire.
+- Native callbacks `UnityRenderingExtEvent` and `UnityRenderingExtQuery` are not fired.
+- Calling native functions from static constuctors generally won't work. Although rules are more relaxed, you usually shouldn't even atempt to do that in the first place. Note that _[static constructors don't fire on their own](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/static-constructors#remarks)_.
 - Threads that execute past `OnApplicationQuit` event are not-very-well handled (usually not something to worry about).
 
 ## Troubleshooting & advanced usage
@@ -57,14 +58,8 @@ Tool created mainly to solve old problem with reloading [native plugins](https:/
 | Lazy mode | ~190% |
 | With thread safety | ~430% |
 
-## Planned / possible features
-- Seamless managed/native code debugging
-- Improved thread safety and interthread synchronization
-- Different mocking methods (IL/metadata/assembly manipulation)
-- Unit tests (uhh, hard)
-
 ## References
-Some of the sources I based my code on (as you often say, this wouldn't be possible without):
+Some of the sources I based my code on:
 - https://github.com/pardeike/Harmony
 - https://stackoverflow.com/a/9507589/7249108
 - http://runningdimensions.com/blog/?p=5
