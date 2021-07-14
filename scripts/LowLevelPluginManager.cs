@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -40,7 +40,7 @@ namespace UnityNativeTool.Internal
                 }
                 catch (DllNotFoundException)
                 {
-                    Debug.LogWarning("StubLluiPlugin not found. UnityPluginLoad and UnityPluginUnload callbacks won't fire. If you didn't install UnityNativeTool from .unitypackage or it didn't contain the compiled plugin, you'll need to compile it manually. You may also comment out this warning if you don't care about these callbacks.");
+                    Debug.LogWarning("StubLluiPlugin not found. UnityPluginLoad and UnityPluginUnload callbacks won't fire. If need them, please read the README at the github's repo, otherwise you may just comment out this warning.");
                 }
                 finally
                 {

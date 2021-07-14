@@ -1,4 +1,8 @@
 scripts/LICENSE.txt
+scripts/LICENSE.txt.meta
+scripts/plugins
+scripts/plugins.meta
 *.sln
 .vs
 stubLluiPlugin
+tests
