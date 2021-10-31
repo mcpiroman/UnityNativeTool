@@ -482,6 +482,7 @@ namespace UnityNativeTool.Internal
                 }
                 case InAttribute _:
                 case OutAttribute _:
+                case OptionalAttribute _:
                 {
                     var ctor = attrType.GetConstructor(Type.EmptyTypes);
                     return new CustomAttributeBuilder(ctor, Array.Empty<object>(), Array.Empty<PropertyInfo>(), Array.Empty<object>(),

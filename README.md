@@ -25,7 +25,7 @@ Tool created mainly to solve the old problem with reloading [native plugins](htt
 
 ## Usage
 - Your plugin files must be at path specified in options. By default, just add `__` (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
-- By default, all native functions in the main scripts assembly will be mocked (i.e. handled by this tool instead of Unity, allowing them to be unloaded). You can change this in options and use provided attributes to specify that yourself (they are in `UnityNativeTool` namespace, file `Attributes.cs`).
+- By default, all `extern` methods in the main scripts assembly will be mocked (i.e. handled by this tool instead of Unity, allowing them to be unloaded). You can change this in options and use provided attributes to specify that yourself (they are in `UnityNativeTool` namespace, file `Attributes.cs`).
 - Options are accessible via `DllManipulatorScript` editor or window.
 - You can also unload and load all DLLs via shortcut, `Alt+D` and `Alt+Shfit+D` respectively. Editable in the Shortcut Manager for 2019.1+
 - You can get callbacks in your C# code when the load state of a DLL has changed with attributes like `[NativeDllLoadedTrigger]`. See `Attributes.cs`.
@@ -38,8 +38,8 @@ For that, you'll need a `StubLluiPlugin` DLL. I only embed it into .unitypackage
 This is, compile the file `./stubLluiPlugin.c` into the dynamic library (name it `StubLluiPlugin`, no underscores) and put into Unity like you would do with other plugins.
 
 ## Limitations
-- Native callbacks `UnityRenderingExtEvent` and `UnityRenderingExtQuery` are do not fire.
-- Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
+- Native callbacks `UnityRenderingExtEvent` and `UnityRenderingExtQuery` do not fire.
+- Only some basic attributes on parameters of `extern` methods (such as `[MarshalAs]` or `[In]`) are supported.
 - Properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` on `[MarshalAs]` attribute are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
 - Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be the default for array types, so in trivial situations you don't need to use it anyway.
 - Properties `ExactSpelling` and `PreserveSig` of `[DllImport]` attribute are not supported.
