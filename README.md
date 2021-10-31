@@ -4,7 +4,7 @@ Tool created mainly to solve the old problem with reloading [native plugins](htt
 
 - Automatically unloads native plugins after stopping the game and loads them when needed.
 - You can unload/reload them manually, even when the game is running.
-- No code change is required (use usual `[DllImport]`).
+- No code change is required - use usual `[DllImport]`.
 - [Low level interface](https://docs.unity3d.com/Manual/NativePluginInterface.html) callbacks `UnityPluginLoad` and `UnityPluginUnload` do fire - to enable them see [this section](#low-level-interface-callbacks-support).
 - Works on Windows, Linux and Mac, but only on x86/x86_64 processors.
 - Ability to log native calls to file in order to diagnose crashes caused by them.
@@ -24,31 +24,31 @@ Tool created mainly to solve the old problem with reloading [native plugins](htt
 4. One of the gameobjects in the scene needs to have `DllManipulatorScript` on it. (This script calls `DontDestroayOnLoad(gameObject)` and deletes itself when a duplicate is found in order to behave nicely when switching scenes).
 
 ## Usage
-- Your plugin files must be at path specified in options. By default, just add __ (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
+- Your plugin files must be at path specified in options. By default, just add `__` (two underscores) at the beginning of your dll files in the Assets/Plugins folder (e.g. on Windows, plugin named `FastCalcs` should be at path `Assets\Plugins\__FastCalcs.dll`).
 - By default, all native functions in the main scripts assembly will be mocked (i.e. handled by this tool instead of Unity, allowing them to be unloaded). You can change this in options and use provided attributes to specify that yourself (they are in `UnityNativeTool` namespace, file `Attributes.cs`).
 - Options are accessible via `DllManipulatorScript` editor or window.
-- You can get callbacks in C# when the dll load state has changed with attributes like `[NativeDllLoadedTrigger]`. See `Attributes.cs`.
-- Unload and load all DLLs via shortcut `Alt+D` and `Alt+Shfit+D` respectively. Editable in the Shortcut Manager for 2019.1+
-- Although this tool presumably works in the built game, it's intended to be used only during developement.
+- You can also unload and load all DLLs via shortcut, `Alt+D` and `Alt+Shfit+D` respectively. Editable in the Shortcut Manager for 2019.1+
+- You can get callbacks in your C# code when the load state of a DLL has changed with attributes like `[NativeDllLoadedTrigger]`. See `Attributes.cs`.
+- Although this tool presumably works in the built game, it's intended to be used only during development.
 - If something doesn't work, first check out available options (and read their descriptions), then [report an issue](https://github.com/mcpiroman/UnityNativeTool/issues/new).
 
 ## Low level interface callbacks support
-For that, you'll need a `StubLluiPlugin` native plugin. I only embed it into .unitypackage for x64 Windows platform, so for other cases you'll need to compile it manually:
+For that, you'll need a `StubLluiPlugin` DLL. I only embed it into .unitypackage for x64 Windows platform, so for other cases you'll need to compile it manually.
 
-Basically compile the file `./stubLluiPlugin.c` into the dynamic library (name it `StubLluiPlugin`, no underscores) and put into Unity like you would do with other plugins.
+This is, compile the file `./stubLluiPlugin.c` into the dynamic library (name it `StubLluiPlugin`, no underscores) and put into Unity like you would do with other plugins.
 
 ## Limitations
 - Native callbacks `UnityRenderingExtEvent` and `UnityRenderingExtQuery` are do not fire.
 - Marshaling parameter attributes other than `[MarshalAs]`, `[In]` and `[Out]` are not supported.
 - Properties `MarshalCookie`, `MarshalType`, `MarshalTypeRef` and `SafeArrayUserDefinedSubType` on `[MarshalAs]` attribute are not supported (due to [Mono bug](https://github.com/mono/mono/issues/12747)).
-- Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be the default for array types, so in trivial situations you wouldn't need to use it anyway.
+- Explicitly specifying `UnmanagedType.LPArray` in `[MarshalAs]` is not supported (due to [another Mono bug](https://github.com/mono/mono/issues/16570)). Note that this should be the default for array types, so in trivial situations you don't need to use it anyway.
 - Properties `ExactSpelling` and `PreserveSig` of `[DllImport]` attribute are not supported.
-- Calling native functions from static constuctors generally won't work. Although the rules are more relaxed, you usually shouldn't even atempt to do that in the first place. Note that in C# _[static constructors don't fire on their own](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/static-constructors#remarks)_.
-- Threads that execute past `OnApplicationQuit` event are not-very-well handled (usually not something to worry about).
+- Calling native functions from static constructors generally won't work. Although the rules are more relaxed, you usually shouldn't even attempt to do that in the first place. Note that in C# _[static constructors don't fire on their own](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/static-constructors#remarks)_.
+- Additional threads that execute past `OnApplicationQuit` event are not-very-well handled (usually not something to worry about).
 
 ## Troubleshooting & advanced usage
-- The path in the `DLL path pattern` option cannot be simply set to `{assets}/Plugins/{name}.dll` as it would interfer with Unity's plugin loading - hence the undersocres.
-- In version `2019.3.x` Unity changed behaviour of building. If you want to use this tool in the built game (although preferiably just for developement) you should store your plugins in architecture-specific subfolders and update the `DLL path pattern` option accordingly, e.g. `{assets}/Plugins/x86_64/__{name}.dll`.
+- The path in the `DLL path pattern` option cannot be simply set to `{assets}/Plugins/{name}.dll` as it would interfere with Unity's plugin loading - hence the underscores.
+- In version `2019.3.x` Unity changed behaviour of building. If you want to use this tool in the built game (although preferably just for development) you should store your plugins in architecture-specific subfolders and update the `DLL path pattern` option accordingly, e.g. `{assets}/Plugins/x86_64/__{name}.dll`.
 - The `UnityNativeTool.DllManipulatorScript` script by default has an execution order of -10000 to make it run first. If you have a script that has even lower execution order and that scripts calls a DLL, then you should make sure that `UnityNativeTool.DllManipulatorScript` runs before it, e.g. by further lowering its execution order.
 
 
@@ -62,7 +62,6 @@ Basically compile the file `./stubLluiPlugin.c` into the dynamic library (name i
 | With thread safety | ~430% |
 
 ## References
-Some of the sources I based my code on:
 - https://github.com/pardeike/Harmony
 - https://stackoverflow.com/a/9507589/7249108
 - http://runningdimensions.com/blog/?p=5
