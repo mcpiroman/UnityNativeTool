@@ -195,9 +195,22 @@ namespace UnityNativeTool.Internal
                         LowLevelPluginManager.OnBeforeDllUnload(dll);
                         InvokeCustomTriggers(_customBeforeUnloadTriggers, dll);
 
-                        bool success = SysUnloadDll(dll.handle);
-                        if (!success)
-                            Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
+                        // bool success = SysUnloadDll(dll.handle);
+                        // if (!success)
+                        //     Debug.LogWarning($"Error while unloading DLL \"{dll.name}\" at path \"{dll.path}\"");
+
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+                        // Reduce the reference count to 0 and the system will release the DLL after a short time
+                        var maxTime = UnityEditor.EditorApplication.timeSinceStartup + 2;
+                        while(SysUnloadDll(dll.handle))
+                        {
+                            if(UnityEditor.EditorApplication.timeSinceStartup > maxTime)
+                            {
+                                Debug.Log($"DLL unload timeout. path:\"{dll.path}\"");
+                                break;
+                            }
+                        }
+#endif
 
                         dll.ResetAsUnloaded();
                         InvokeCustomTriggers(_customAfterUnloadTriggers, dll);
