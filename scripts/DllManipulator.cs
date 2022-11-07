@@ -416,8 +416,15 @@ namespace UnityNativeTool.Internal
             if (_customDelegateTypesModule == null)
             {
                 var aName = new AssemblyName("HelperRuntimeDelegates");
+
+                 #if NETSTANDARD
+                var delegateTypesAssembly = AssemblyBuilder.DefineDynamicAssembly(aName, AssemblyBuilderAccess.Run);
+                _customDelegateTypesModule = delegateTypesAssembly.DefineDynamicModule(aName.Name + ".dll");
+                #else
                 var delegateTypesAssembly = AppDomain.CurrentDomain.DefineDynamicAssembly(aName, AssemblyBuilderAccess.RunAndSave);
                 _customDelegateTypesModule = delegateTypesAssembly.DefineDynamicModule(aName.Name, aName.Name + ".dll");
+                #endif
+
             }
 
             var delBuilder = _customDelegateTypesModule.DefineType("HelperNativeDelegate" + _createdDelegateTypes.ToString(),
